@@ -29,7 +29,7 @@
         <param name="drone_id" value="0" />
         <param name="mesh_resource" value="package://odom_visualization/meshes/yunque.dae" />
     </node>
-    <include file="$(find mars_drone_sim)/launch/garage.launch">
+    <include file="$(find mars_drone_sim)/launch/rigo.launch">
         <arg name="sensing_horizon" value="$(arg sensing_horizon_mid360)" />
     </include>
 

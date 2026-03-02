@@ -1,5 +1,5 @@
-PROBLEM_FILE = /home/mz/Project_traditional/EPIC/src/global_planner/utils/lkh_tsp_solver/resource/single.tsp
+PROBLEM_FILE = /home/mz/Project_traditional/REAL_EPIC/src/epic/global_planner/utils/lkh_tsp_solver/resource/single.tsp
 GAIN23 = NO
 MOVE_TYPE = 2
-OUTPUT_TOUR_FILE =/home/mz/Project_traditional/EPIC/src/global_planner/utils/lkh_tsp_solver/resource/single.txt
+OUTPUT_TOUR_FILE =/home/mz/Project_traditional/REAL_EPIC/src/epic/global_planner/utils/lkh_tsp_solver/resource/single.txt
 RUNS = 10

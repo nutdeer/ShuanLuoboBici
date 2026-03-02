@@ -3,3 +3,4 @@ FAST_LIO/Log
 FAST_LIO/PCD
 **/.vscode
 Utils/pointcloudmap_load/data
+epic/global_planner/utils/lkh_tsp_solver/resource
