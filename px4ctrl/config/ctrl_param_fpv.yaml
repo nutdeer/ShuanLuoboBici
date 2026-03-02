@@ -1,0 +1,68 @@
+#########################################################################
+# ⭐⭐⭐  Set parameters carefully for satisfied performance!   ⭐⭐⭐ #
+#########################################################################
+
+mass        : 2.5 # kg 
+gra         : 9.81
+pose_solver : 1     # 0:From ZhepeiWang (drag & less singular) 1:From ZhepeiWang, 2:From rotor-drag    
+ctrl_freq_max   : 100.0
+use_bodyrate_ctrl: false
+max_manual_vel: 1.0
+max_angle: 30  # Attitude angle limit in degree. A negative value means no limit.
+max_acc_xy: 2.2  # XY方向最大加速度限制，单位：m/s^2
+max_yaw_rate_deg: 60.0  # 最大yaw_dot限制，单位：度/S
+low_voltage: 13.2 # 4S battery
+
+rc_reverse: # *
+    roll: false
+    pitch: false
+    yaw: false
+    throttle: false
+
+auto_takeoff_land:
+    enable: true
+    enable_auto_arm: true
+    no_RC: false
+    takeoff_height: 0.3 # m
+    takeoff_land_speed: 0.1 # m/s
+
+thrust_model: # The model that maps thrust signal u(0~1) to real thrust force F(Unit:N): F=K1*Voltage^K2*(K3*u^2+(1-K3)*u). 
+    print_value: false # display the value of “thr_scale_compensate” or “hover_percentage” during thrust model estimating.
+    accurate_thrust_model: false  # This can always enabled if don't require accurate control performance :-)
+    # accurate thrust mapping parameters
+    K1: 0.7583 # Needs precise calibration!
+    K2: 1.6942 # Needs precise calibration!
+    K3: 0.6786 # Needs precise calibration! K3 equals THR_MDL_FAC in https://docs.px4.io/master/en/config_mc/pid_tuning_guide_multicopter.html.
+    # approximate thrust mapping parameters
+    hover_percentage: 0.38 # Thrust percentage in Stabilize/Arco mode # *
+
+gain: 
+    # 外环V 参数P
+    kPp0: 1.0
+    kPp1: 1.0
+    kPp2: 0.8
+    # 内环V 参数P
+    kVp0: 3.7
+    kVp1: 3.7
+    kVp2: 2.0
+    # 内环V 参数I
+    kVi0: 0.0
+    kVi1: 0.0
+    kVi2: 0.0
+    # 内环V 参数D
+    kVd0: 0.05
+    kVd1: 0.05
+    kVd2: 0.1
+
+rotor_drag:  
+    x: 0.0  # The reduced acceleration on each axis caused by rotor drag. Unit:(m*s^-2)/(m*s^-1).
+    y: 0.0  # Same as above
+    z: 0.0  # Same as above
+    k_thrust_horz: 0.0 # Set to 0 recommended... --
+
+msg_timeout:
+    odom: 0.5
+    rc:   0.5
+    cmd:  0.5
+    imu:  0.5
+    bat:  0.5

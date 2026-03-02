@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="pointcloudmap_load" type="globalmap_server" name="globalmap_server" output="screen">
+        <remap from="/globalmap" to="/map_generator/global_cloud"/>
+        <param name="globalmap_pcd" value="$(find pointcloudmap_load)/data/gongdi-20240802-19-edited.pcd"/>
+        <param name="downsample_resolution" type="double" value="0.3"/>
+        <param name="downsample_or_not" type="bool" value="true"/>
+        <param name="odom_x1" type="double" value="8.18"/>
+        <param name="odom_y1" type="double" value="-7.1"/>
+        <param name="odom_x2" type="double" value="8.18"/>
+        <param name="odom_y2" type="double" value="-3.62"/>
+
+        <param name="odom_z1" type="int" value="7"/>
+        <param name="odom_z2" type="int" value="10"/>
+    </node>
+
+</launch>

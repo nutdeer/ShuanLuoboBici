@@ -1,0 +1,25 @@
+1、光流硬件配置及测试
+检查飞控固件版本是 PX4 1.14
+MAV _1 CONFIG TELEM2
+重启飞控
+MAV_1 MODE Normal
+SER TEL2 BAUD 115200 8N1
+SENS FLOW_ROT No rotation
+EKF2 OF CTRL Enabled
+EKF2 RNG CTRL Enabled
+EKF2 HGT REF Range sensor
+EKF2 OF POS xyz	根据实际情况 测量光流安装位置 并配置 以飞机中心为原点 X向前 Y向右 Z向下
+重启飞控
+打开QGC MAVLINK检测  观察OPTICAL_FLOW_RAD: integrated_x  integrated_y  distance  是否正常
+以上则完成光流硬件的基础配置
+
+2、安全设置
+COM_OF_LOSS_T  	0.2S
+COM_OBL_RC_ACT  Position mode(默认)
+飞行模式：Channal 5:  飞行模式 4 6 更换为Position
+MPC_THR_HOVER   悬停油门  根据实际情况修改 大概就行
+
+
+
+
+

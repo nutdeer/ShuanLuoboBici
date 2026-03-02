@@ -1,0 +1,71 @@
+EPIC 点云大规模探索轻量级方案
+
+系统入口:roslaunch epic_planner garage.launch
+src/global_planner/exploration_manager/launch
+
+主体思路：使用点云直接提取前沿，生成关键点，构建拓扑图，在拓扑图间规划，实现探索
+探索选点+规划路径 分立执行
+
+@@原始点云到最优视点之间的变换算法：
+1、原始点云预处理(FOV边缘点 噪声 遮挡 无效点)
+2、边界点类别检测 (区分障碍物还是前沿)
+3、前沿聚类 (使用法向量 AABB盒 周围点属性检查 得到前沿点聚类)
+4、初始视点生成 (原始视点生成 DBSCAN聚类原始视点 集群优化)
+5、可达性分析 (在拓扑图中插入视点 判断可达性 对可达视点进行代价计算)
+6、最佳视点生成 (对各个视点检查各个方向看到的前沿点的数量 计算得分 得到最佳视点)
+
+拓扑图是由最优视点+气泡节点聚类构成的
+AABB盒是包围聚类的最小立方体,各个面垂直坐标系坐标轴,由两个角点确定大小
+气泡节点表示可通行的区域
+
+@@ 主要逻辑结构:
+存在一个状态机 实现大的状态逻辑切换  [主核心是1:(完成预处理+求解总路线) 2是预处理内容]
+1、在定时回调中实现拓扑图更新+探索目标确定     updateTopoAndGlobalPath -> selectBestViewpoint
+拓扑图更新→历史轨迹更新→生成探索目标点→筛选可达目标→构建TSP成本矩阵→求解TSP得到最优探索顺序→生成全局路径
+ 
+2、在点云接收回调中实现点云预处理和最佳视点距离和生成  CloudOdomCallback->updateFrontierClusters
+数据预处理→网格筛选→边界分类→法向量验证→聚类更新
+
+
+@@ 使用网络 学习最佳视点的选择过程 
+@@ 使用探索价值地图 直接对路径进行优化 得到综合优化的结果
+@@ 看看TARE的视点是怎么处理出来的???
+
+
+global_planner
+    exploration_manager
+       fast_exploration_fsm.cpp         状态机 (主要逻辑)
+       fast_exploration_manager.cpp     探索管理
+       fsm_utils.cpp                    回调函数
+
+    frontier_manager            前沿管理(主要创新点)
+        frontier_manager.cpp    前沿聚类 预处理 计算最佳视点
+        frontier_viszer.cpp     主要是可视化 没有关键函数
+        global_planner.cpp      根据前沿聚类结果生成最优观测点并求解TSP
+        raycast.cpp             光线投射库
+
+    lidar_map                   雷达点云处理
+        ikd_Tree.cpp
+        lidar_map_interface.cpp
+        sim_lio.cpp
+
+    pointcloud_topo             直接从点云中生成拓扑图(主要创新点)
+        bubble_split.cpp                气泡点生成
+        historical_odom_graph.cpp
+        parallel_bubble_astar.cpp
+        topo_skeleton_graph.cpp         拓扑图构建及更新
+    utils
+        backward
+        lkh_tsp_solver
+
+local_planner
+    minco_planner               轨迹优化部分代码
+        fast_planner_node.cpp
+        planner_manager.cpp
+        traj_server.cpp
+
+    path_searching              路径搜索 并行快速搜索
+        bubble_astar.cpp
+    Utils
+        poly_traj
+        traj_utils

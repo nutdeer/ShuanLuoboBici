@@ -1,0 +1,15 @@
+NAME : single.202215.tour
+COMMENT : Length = 202215
+COMMENT : Found by LKH [Keld Helsgaun] Sun Oct 12 22:42:49 2025
+TYPE : TOUR
+DIMENSION : 7
+TOUR_SECTION
+1
+5
+4
+2
+3
+6
+7
+-1
+EOF

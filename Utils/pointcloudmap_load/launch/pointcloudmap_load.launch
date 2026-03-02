@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="pointcloudmap_load" type="globalmap_server" name="globalmap_server" output="screen">
+
+        <param  name="globalmap_pcd" value="$(find pointcloudmap_load)/data/111.pcd"/>
+        <param  name="downsample_or_not" type="bool" value="true"/>
+        <param  name="downsample_resolution" type="double" value="0.4"/>
+
+        <remap from="/globalmap" to="/map_generator/global_cloud"/> 
+    </node>
+</launch>
