@@ -112,7 +112,7 @@ void TopoGraph::updateHistoricalOdoms() {
   };
   edge2check.flatten();
   edge2insert.flatten();
-  omp_set_num_threads(6);
+  omp_set_num_threads(4);
   // clang-format off
   #pragma omp parallel for
   // clang-format on

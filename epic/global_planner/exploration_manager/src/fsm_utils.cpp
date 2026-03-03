@@ -105,19 +105,36 @@ int FastExplorationFSM::callExplorationPlanner() {
 }
 
 // 探索任务触发
-void FastExplorationFSM::triggerCallback(const nav_msgs::PathConstPtr &msg) {
-  if (msg->poses[0].pose.position.z < -0.1)
-    return;
+void FastExplorationFSM::triggerCallback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
 
-  if (state_ != WAIT_TRIGGER)
+  if (msg->pose.position.z > 0)   //向上拖动
+  {  
+    if (state_ != WAIT_TRIGGER)
+      return;
+
+    static int trigger_count = 0;
+    if (trigger_count == 0){ // 第一次起飞
+      transitState(TAKE_OFF, "triggerCallback");
+      cout << "Triggered! START TAKE OFF !" << endl;
+    }
+    else if (trigger_count >= 1){ // 第二次开始探索
+      fd_->trigger_ = true;
+      cout << "Triggered! START EXPLORATION !" << endl;
+      total_time_ = ros::Time::now().toSec();
+      transitState(PLAN_TRAJ, "triggerCallback");
+    }
+    trigger_count++;    
     return;
-  fd_->trigger_ = true;
-  cout << "Triggered!" << endl;
-  total_time_ = ros::Time::now().toSec();
-  transitState(PLAN_TRAJ, "triggerCallback");
+  }
+  else if (msg->pose.position.z < 0)   //向下拖动
+  {
+    transitState(LAND, "triggerCallback");
+    cout << "Triggered! START LAND !" << endl;
+  }
+  return;
 }
 
-// 接收雷达点云+里程计更新+边界聚类  (点云和Odom的匹配回调)
+// 点云地图构建+各类内里程计更新+边界聚类  (点云和Odom的匹配回调)
 void FastExplorationFSM::CloudOdomCallback(const sensor_msgs::PointCloud2ConstPtr &msg, const nav_msgs::Odometry::ConstPtr &odom_) {
   ros::Time t1 = ros::Time::now();
   planner_manager_->lidar_map_interface_->updateCloudMapOdometry(msg, odom_);

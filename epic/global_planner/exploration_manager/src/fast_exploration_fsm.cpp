@@ -24,6 +24,7 @@ typedef visualization_msgs::MarkerArray MarkerArray;
 // FSM
 // INIT           初始化状态 等待里程计
 // WAIT_TRIGGER   等待触发  triggerCallback函数触发
+// TAKE_OFF       起飞状态
 // PLAN_TRAJ      规划状态  (核心状态)
 // EXEC_TRAJ      轨迹执行状态 检查超速和碰撞
 // CAUTION        危险状态  尝试回到安全区域并重新开始规划
@@ -49,6 +50,18 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
   {
     ROS_WARN_THROTTLE(1.0, "wait for trigger.");
     break;
+  }
+
+  case TAKE_OFF:
+  {
+    for(int i = 0; i < 20; i++)
+    {
+      quadrotor_msgs::TakeoffLand takeoff_msg;
+      takeoff_msg.takeoff_land_cmd = takeoff_msg.TAKEOFF;
+      land_pub_.publish(takeoff_msg);
+    }
+    ROS_WARN("TAKE_OFF!!");
+    transitState(WAIT_TRIGGER, "FSM");
   }
 
   case FINISH:
@@ -184,7 +197,6 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     stopTraj();
     exec_timer_.stop();
     global_path_update_timer_.stop();
-    // 没电了！！再飞就会炸鸡，降落！！！
     while (1)
     {
       quadrotor_msgs::TakeoffLand land_msg;
@@ -210,41 +222,29 @@ void FastExplorationFSM::init(ros::NodeHandle &nh,
   nh.param("fsm/replan_time", fp_->replan_time_, -1.0);
   nh.param("bubble_astar/resolution_astar", fp_->bubble_a_star_resolution, 0.1);
   nh.param("fsm/debug_planner", debug_planner, false);
-  nh.param("fsm/emergency_replan_control_error",
-           fp_->emergency_replan_control_error, 0.3);
-  nh.param("fsm/replan_time_after_traj_start",
-           fp_->replan_time_after_traj_start_, 0.5);
-  nh.param("fsm/replan_time_before_traj_end", fp_->replan_time_before_traj_end_,
-           0.5);
+  nh.param("fsm/emergency_replan_control_error", fp_->emergency_replan_control_error, 0.3);
+  nh.param("fsm/replan_time_after_traj_start", fp_->replan_time_after_traj_start_, 0.5);
+  nh.param("fsm/replan_time_before_traj_end", fp_->replan_time_before_traj_end_, 0.5);
+
   /* Initialize main modules */
-  // expl_manager_.reset(new FastExplorationManager);
-  // expl_manager_->initialize(nh);
   expl_manager_ = explorer;
   planner_manager_ = expl_manager_->planner_manager_;
 
   state_ = EXPL_STATE::INIT;
-  fd_->have_odom_ = false;
-  fd_->state_str_ = {"INIT", "WAIT_TRIGGER", "PLAN_TRAJ", "CAUTION",
+  fd_->state_str_ = {"INIT", "WAIT_TRIGGER", "TAKE_OFF", "PLAN_TRAJ", "CAUTION",
                      "EXEC_TRAJ", "FINISH", "LAND" };
+  fd_->have_odom_ = false;
   fd_->static_state_ = true;
   fd_->trigger_ = false;
   fd_->use_bubble_a_star_ = false;
-  battary_sub_ =
-      nh.subscribe("/mavros/battery", 10, &FastExplorationFSM::battaryCallback,
-                   this, ros::TransportHints().tcpNoDelay());
 
   /* Ros sub, pub and timer */
-  // if (debug_planner) {
-  //   exec_timer_ = nh.createTimer(ros::Duration(0.01),
-  //   &FastExplorationFSM::PlannerDebugFSMCallback, this);
-  // } else {
-  exec_timer_ = nh.createTimer(ros::Duration(0.01),
-                               &FastExplorationFSM::FSMCallback, this);
-  // }
-  global_path_update_timer_ = nh.createTimer(
-      ros::Duration(0.2), &FastExplorationFSM::globalPathUpdateCallback, this);
-  trigger_sub_ = nh.subscribe("/waypoint_generator/waypoints", 1,
-                              &FastExplorationFSM::triggerCallback, this);
+  exec_timer_ = nh.createTimer(ros::Duration(0.01), &FastExplorationFSM::FSMCallback, this);
+  global_path_update_timer_ = nh.createTimer(ros::Duration(0.2), &FastExplorationFSM::globalPathUpdateCallback, this);
+
+  trigger_sub_ = nh.subscribe("/goal_rviz", 1, &FastExplorationFSM::triggerCallback, this);
+  battary_sub_ = nh.subscribe("/mavros/battery", 10, &FastExplorationFSM::battaryCallback, this, ros::TransportHints().tcpNoDelay());
+
   replan_pub_ = nh.advertise<std_msgs::Empty>("/planning/replan", 10);
   heartbeat_pub_ = nh.advertise<std_msgs::Empty>("/planning/heartbeat", 10);
   land_pub_ = nh.advertise<quadrotor_msgs::TakeoffLand>("/px4ctrl/takeoff_land", 10);
@@ -254,17 +254,14 @@ void FastExplorationFSM::init(ros::NodeHandle &nh,
   static_pub_ = nh.advertise<std_msgs::Bool>("/planning/static", 10);
   state_pub_ = nh.advertise<visualization_msgs::Marker>("/planning/state", 10);
 
+  /* 点云 odom同步 */
   string odom_topic, cloud_topic;
   nh.getParam("odometry_topic", odom_topic);
   nh.getParam("cloud_topic", cloud_topic);
-  cloud_sub_.reset(new message_filters::Subscriber<sensor_msgs::PointCloud2>(
-      nh, cloud_topic, 1));
-  odom_sub_.reset(
-      new message_filters::Subscriber<nav_msgs::Odometry>(nh, odom_topic, 5));
-  sync_cloud_odom_.reset(new message_filters::Synchronizer<SyncPolicyCloudOdom>(
-      SyncPolicyCloudOdom(10), *cloud_sub_, *odom_sub_));
-  sync_cloud_odom_->registerCallback(
-      boost::bind(&FastExplorationFSM::CloudOdomCallback, this, _1, _2));
+  cloud_sub_.reset(new message_filters::Subscriber<sensor_msgs::PointCloud2>(nh, cloud_topic, 1));
+  odom_sub_.reset(new message_filters::Subscriber<nav_msgs::Odometry>(nh, odom_topic, 5));
+  sync_cloud_odom_.reset(new message_filters::Synchronizer<SyncPolicyCloudOdom>(SyncPolicyCloudOdom(10), *cloud_sub_, *odom_sub_));
+  sync_cloud_odom_->registerCallback(boost::bind(&FastExplorationFSM::CloudOdomCallback, this, _1, _2));
 }
 
 void FastExplorationFSM::battaryCallback(const sensor_msgs::BatteryStateConstPtr &msg)

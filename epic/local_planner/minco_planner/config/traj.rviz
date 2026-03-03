@@ -13,12 +13,13 @@ Panels:
         - /explore_env1/buffered_cloud1/Autocompute Value Bounds1
         - /topo_graph1/Namespaces1
       Splitter Ratio: 0.5381944179534912
-    Tree Height: 694
+    Tree Height: 433
   - Class: rviz/Tool Properties
     Expanded:
       - /2D Pose Estimate1
       - /2D Nav Goal1
       - /Publish Point1
+      - /3D Nav Goal1
     Name: Tool Properties
     Splitter Ratio: 0.5886790156364441
   - Class: rviz/Views
@@ -79,7 +80,7 @@ Visualization Manager:
           Marker Topic: /planning/position_cmd_vis
           Name: position_cmd_all
           Namespaces:
-            "": true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/Marker
@@ -99,7 +100,7 @@ Visualization Manager:
           Marker Topic: /planning/travel_traj
           Name: history_traj
           Namespaces:
-            traj_exp: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/MarkerArray
@@ -160,7 +161,7 @@ Visualization Manager:
           Marker Topic: /visualizer/trajectory
           Name: Marker
           Namespaces:
-            trajectory: true
+            {}
           Queue Size: 105
           Value: true
         - Class: rviz/Marker
@@ -168,7 +169,7 @@ Visualization Manager:
           Marker Topic: /visualizer/edge
           Name: Marker
           Namespaces:
-            edge: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/Marker
@@ -176,7 +177,7 @@ Visualization Manager:
           Marker Topic: /visualizer/mesh
           Name: Marker
           Namespaces:
-            mesh: true
+            {}
           Queue Size: 100
           Value: true
       Enabled: true
@@ -453,6 +454,8 @@ Visualization Manager:
     - Class: rviz/PublishPoint
       Single click: true
       Topic: /clicked_point
+    - Class: rviz_plugins/Goal3DTool
+      Topic: goal_rviz
   Value: true
   Views:
     Current:
@@ -473,9 +476,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8347971439361572
+      Pitch: 0.47479748725891113
       Target Frame: sensor
-      Yaw: 4.69088888168335
+      Yaw: 4.730891227722168
     Saved:
       - Class: rviz/ThirdPersonFollower
         Distance: 40.93450164794922

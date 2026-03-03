@@ -120,7 +120,7 @@ void FrontierManager::generateTSPViewpoints(Eigen::Vector3f&center,  vector<Topo
   vector<ClusterInfo::Ptr> tsp_clusters;
   mutex mtx;
   unordered_set<int> cluster2remove;
-  omp_set_num_threads(6);
+  omp_set_num_threads(4);
   // clang-format off
   #pragma omp parallel for
   // clang-format on

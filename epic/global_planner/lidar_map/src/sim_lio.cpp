@@ -53,6 +53,8 @@ void LIOInterface::boxSearch(const Eigen::Vector3f &min_bd,
   }
   ikd_Tree_map.Box_Search(boxpoint, pts);
 }
+
+// 构建基础IKD TREE用于进行点到点云距离检测 安全性检测 距离计算等目的
 void LIOInterface::updateCloudMapOdometry(
     const sensor_msgs::PointCloud2ConstPtr &msg,
     const nav_msgs::Odometry::ConstPtr &odom_) {

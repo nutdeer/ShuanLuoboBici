@@ -507,7 +507,7 @@ void TopoGraph::updateRemainedConnections(vector<TopoNode::Ptr> &nodes) {
   }
   edge2test.flatten();
   edge2check.flatten();
-  omp_set_num_threads(6);
+  omp_set_num_threads(4);
   // clang-format off
   #pragma omp parallel for
   // clang-format on
@@ -681,7 +681,7 @@ void TopoGraph::insertNodes(vector<TopoNode::Ptr> &nodes, bool only_raycast) {
   path_vec.resize(pair_vector.size());
 
   // 并行A*搜索路径并写入结果
-  omp_set_num_threads(6);
+  omp_set_num_threads(4);
   // clang-format off
   #pragma omp parallel for
   // clang-format on
@@ -811,7 +811,7 @@ void TopoGraph::updateSkeleton() {
         old_nodes.push_back(node);
     }
   }
-  omp_set_num_threads(6);
+  omp_set_num_threads(4);
   // clang-format off
   #pragma omp parallel for
   // clang-format on

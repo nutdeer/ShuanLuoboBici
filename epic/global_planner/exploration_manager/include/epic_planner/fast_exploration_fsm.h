@@ -40,7 +40,7 @@ class PlanningVisualization;
 struct FSMParam;
 struct FSMData;
 
-enum EXPL_STATE { INIT, WAIT_TRIGGER, PLAN_TRAJ, CAUTION, EXEC_TRAJ, FINISH, LAND };
+enum EXPL_STATE { INIT, WAIT_TRIGGER, TAKE_OFF, PLAN_TRAJ, CAUTION, EXEC_TRAJ, FINISH, LAND };
 
 class FastExplorationFSM {
 private:
@@ -82,7 +82,7 @@ private:
   void safetyCallback(const ros::TimerEvent &e);
   void updateTopoAndGlobalPath();
   void globalPathUpdateCallback(const ros::TimerEvent &e);
-  void triggerCallback(const nav_msgs::PathConstPtr &msg);
+  void triggerCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
   void odometryCallback(const nav_msgs::OdometryConstPtr &msg);
   void stopTraj();
 

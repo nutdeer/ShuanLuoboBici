@@ -43,7 +43,7 @@ Goal3DTool::Goal3DTool()
 {
   shortcut_key_ = 'g';
 
-  topic_property_ = new StringProperty( "Topic", "goal",
+  topic_property_ = new StringProperty( "Topic", "goal_rviz",
                                         "The topic on which to publish navigation goals.",
                                         getPropertyContainer(), SLOT( updateTopic() ), this );
 }
