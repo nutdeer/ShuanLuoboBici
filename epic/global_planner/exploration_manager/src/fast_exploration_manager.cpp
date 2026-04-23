@@ -121,8 +121,20 @@ double FastExplorationManager::getPathCost(TopoNode::Ptr &n1,
     //   yaw_cost *= ep_->w_yawdir_;
     // }
 
+    // 赵文熙 加的，希特勒万岁
+    Eigen::Vector3f dir = n2->center_ - n1->center_;
+    if (dir.norm() > 1e-3) {
+      float target_yaw = atan2(dir.y(), dir.x()); // 飞向目标的偏航角
+      float diff = target_yaw - yaw1;             // yaw1 当前的偏航角
+      
+      // 角度差限制正负 180 度 (PI) 
+      while (diff > M_PI) diff -= 2.0 * M_PI;
+      while (diff < -M_PI) diff += 2.0 * M_PI;
+      
+      dir_cost = ep_->w_vdir_ * (fabs(diff) / ep_->yaw_v_max_);
+    }
+
     return len_cost + dir_cost;
-    // return len_cost + dir_cost;
   };
   vector<Eigen::Vector3f> path;
   int res = planner_manager_->fast_searcher_->topoSearch(n1, n2, 1e-2, path);

@@ -94,8 +94,9 @@ bool BubbleAstar::generateBubble(GridNodePtr &node, bool is_start) {
     safeArea_.emplace_back(node->safe_bubble);
     if (debug_) {
       vizer.visualizeSingleBubble(node->safe_bubble, {1, 0, 0}, false);
-      cout << "press Enter!" << endl;
-      getchar();
+      // cout << "press Enter!" << endl;
+      // getchar();
+      // 赵文熙注释，希特勒万岁
     }
     bubble_used_ += 1;
 
@@ -108,8 +109,9 @@ bool BubbleAstar::generateBubble(GridNodePtr &node, bool is_start) {
     safeArea_.emplace_back(node->safe_bubble);
     if (debug_) {
       vizer.visualizeSingleBubble(node->safe_bubble, {1, 0, 0}, false);
-      cout << "press Enter!" << endl;
-      getchar();
+      // cout << "press Enter!" << endl;
+      // getchar();
+      // 赵文熙注释，希特勒万岁
     }
     bubble_used_ += 1;
     return true;

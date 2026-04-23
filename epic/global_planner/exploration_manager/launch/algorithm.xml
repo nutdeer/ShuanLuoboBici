@@ -14,7 +14,8 @@
 		<param name="exploration/tsp_dir" value="$(find lkh_tsp_solver)/resource" type="string" />
 		<param name="bubble_astar/allocate_num" value="1000000" type="int" />
 		<param name="bubble_astar/lambda_heu" value="100.0" type="double" />
-		<param name="bubble_astar/debug" value="false" type="bool" />
+		<param name="bubble_astar/debug" value="false" type="bool" />  
+		<!-- zwx 改了 -->
 		<param name="bubble_astar/resolution_astar" value="0.2" type="double" />
 		<!-- topomap -->
 		<param name="bubble_topo/cube_discrete_size" value="0.3" type="double" />

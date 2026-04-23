@@ -45,7 +45,7 @@ class BubbleVisualizer {
             sphereMarkers.color.r = 0.00;
             sphereMarkers.color.g = 0.00;
             sphereMarkers.color.b = 1.00;
-            sphereMarkers.color.a = 0.10;
+            sphereMarkers.color.a = 0.20;
             sphereMarkers.scale.x = sqrt(bubble_nodes_[i]->safe_bubble->radius2) * 2.0;
             sphereMarkers.scale.y = sqrt(bubble_nodes_[i]->safe_bubble->radius2) * 2.0;
             sphereMarkers.scale.z = sqrt(bubble_nodes_[i]->safe_bubble->radius2) * 2.0;

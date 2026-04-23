@@ -304,10 +304,52 @@ bool ParallelBubbleAstar::collisionCheck_shortenPath(vector<Eigen::Vector3f> &pa
       return false;
     }
   }
-  for (auto &idx : indices) {
-    path_shorten.emplace_back(path[idx]);
+//   for (auto &idx : indices) {
+//     path_shorten.emplace_back(path[idx]);
+//   }
+//   path.swap(path_shorten);
+//   return true;
+// }
+// 赵文熙改，希特勒万岁
+    for (auto &idx : indices) {
+        path_shorten.emplace_back(path[idx]);
+      }
+      path.swap(path_shorten);
+
+  static ros::NodeHandle nh("~");
+  static ros::Publisher bubble_pub = nh.advertise<visualization_msgs::MarkerArray>("/bubble_visualizer/sphere_parallel", 10);
+  
+  visualization_msgs::MarkerArray msg;
+  visualization_msgs::Marker clear_marker;
+  clear_marker.action = visualization_msgs::Marker::DELETEALL;
+  msg.markers.push_back(clear_marker);
+
+  for (size_t i = 0; i < path.size(); i++) {
+    visualization_msgs::Marker mk;
+    mk.header.frame_id = "world";
+    mk.header.stamp = ros::Time::now();
+    mk.ns = "parallel_bubbles";
+    mk.id = i;
+    mk.type = visualization_msgs::Marker::SPHERE;
+    mk.action = visualization_msgs::Marker::ADD;
+    mk.pose.position.x = path[i].x();
+    mk.pose.position.y = path[i].y();
+    mk.pose.position.z = path[i].z();
+    mk.pose.orientation.w = 1.0;
+    
+    double radius = std::max(0.1, lidar_map_interface_->getDisToOcc(path[i]) - safe_distance_);
+    mk.scale.x = radius * 2.0;
+    mk.scale.y = radius * 2.0;
+    mk.scale.z = radius * 2.0;
+    
+    mk.color.r = 0.0;
+    mk.color.g = 1.0;
+    mk.color.b = 1.0;
+    mk.color.a = 0.35;
+    msg.markers.push_back(mk);
   }
-  path.swap(path_shorten);
+  bubble_pub.publish(msg);
+
   return true;
 }
 
