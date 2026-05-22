@@ -75,6 +75,10 @@ int main(int argc, char *argv[])
                                                   boost::bind(&Takeoff_Land_Data_t::feed, &fsm.takeoff_land_data, _1),
                                                   ros::VoidConstPtr(),
                                                   ros::TransportHints().tcpNoDelay());
+                                                  /*
+                                                  订阅的话题
+                                                  boost::bind 如果触发的是类的成员函数 ： feed
+                                                  */
 
     fsm.ctrl_FCU_pub = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10);
     fsm.traj_start_trigger_pub = nh.advertise<geometry_msgs::PoseStamped>("/traj_start_trigger", 10);

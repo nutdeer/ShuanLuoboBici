@@ -109,15 +109,15 @@ void FastExplorationFSM::triggerCallback(const geometry_msgs::PoseStamped::Const
 
   if (msg->pose.position.z > 0)   //向上拖动
   {  
-    if (state_ != WAIT_TRIGGER)
+    if (state_ != WAIT_TRIGGER)  // 一拿到 odom 就进 
       return;
 
     static int trigger_count = 0;
-    if (trigger_count == 0){ // 第一次起飞
+    if (trigger_count == 0){ // 第一次 起飞
       transitState(TAKE_OFF, "triggerCallback");
       cout << "Triggered! START TAKE OFF !" << endl;
     }
-    else if (trigger_count >= 1){ // 第二次开始探索
+    else if (trigger_count >= 1){ // 第二次 开始探索
       fd_->trigger_ = true;
       cout << "Triggered! START EXPLORATION !" << endl;
       total_time_ = ros::Time::now().toSec();
@@ -126,7 +126,7 @@ void FastExplorationFSM::triggerCallback(const geometry_msgs::PoseStamped::Const
     trigger_count++;    
     return;
   }
-  else if (msg->pose.position.z < 0)   //向下拖动
+  else if (msg->pose.position.z < 0)   //向下拖动 降落逻辑，像有点问题
   {
     transitState(LAND, "triggerCallback");
     cout << "Triggered! START LAND !" << endl;

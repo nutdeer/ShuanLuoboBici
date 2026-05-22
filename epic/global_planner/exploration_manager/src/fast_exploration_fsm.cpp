@@ -41,7 +41,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     {
       ROS_WARN_THROTTLE(1.0, "no odom.");
       return;
-    }
+    }  // 只要收到 odom 信息，就会切换到 WAIT_TRIGGER
     transitState(WAIT_TRIGGER, "FSM");
     break;
   }
@@ -90,6 +90,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     LocalTrajData *info = &planner_manager_->local_data_;
     double t_cur = (ros::Time::now() - info->start_time_).toSec();
     double time_to_end = info->duration_ - t_cur;
+    // 如果任务点只有两个，那么一个是当前位置一个是目标位置
     if (expl_manager_->ed_->global_tour_.size() == 2)
     {
       Eigen::Vector3f goal = expl_manager_->ed_->global_tour_[1];
@@ -104,7 +105,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     ros::Time tplan = ros::Time::now();
     exec_timer_.stop();
     int res = callExplorationPlanner();
-    exec_timer_.start();
+    exec_timer_.start();  // 暂停心跳做局部规划
     ROS_INFO("\033[31m call planner \033[0m: %.3f",
              (ros::Time::now() - tplan).toSec() * 1000.0);
     
@@ -123,7 +124,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
       {
         transitState(EXEC_TRAJ, "plan success: new traj pub");
       }
-      fd_->use_bubble_a_star_ = false;
+      fd_->use_bubble_a_star_ = false;  // 标志位重置
       fd_->half_resolution = false;
     }
     else if (res == NO_FRONTIER)
@@ -158,8 +159,8 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     {
       transitState(
           PLAN_TRAJ,
-          "safetyCallback: not safe, time:" + to_string(collision_time), true);
-      if (collision_time < fp_->replan_time_ + 0.2)
+          "safetyCallback: not safe, time:" + to_string(collision_time), true);  // 输出和准备转换，实际重规划要等下次循环
+      if (collision_time < fp_->replan_time_ + 0.2)  // 重规划时间 0.5s
         stopTraj();
     }
     else if (!planner_manager_->checkTrajVelocity())
@@ -187,6 +188,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     exec_timer_.start();
     double dis2occ =
         planner_manager_->lidar_map_interface_->getDisToOcc(fd_->odom_pos_);
+    // 和障碍物距离是安全的
     if (dis2occ > planner_manager_->gcopter_config_->dilateRadiusSoft)
       transitState(PLAN_TRAJ, "safe now");
     break;
@@ -197,7 +199,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     stopTraj();
     exec_timer_.stop();
     global_path_update_timer_.stop();
-    while (1)
+    while (1)  // 一旦执行降落就会进入这个死循环
     {
       quadrotor_msgs::TakeoffLand land_msg;
       land_msg.takeoff_land_cmd = land_msg.LAND;

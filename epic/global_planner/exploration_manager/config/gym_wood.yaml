@@ -1,0 +1,87 @@
+#topic param:
+# odometry_topic: /Odometry_high_freq
+# cloud_topic: /cloud_registered
+odometry_topic: /quad_0/lidar_slam/odom
+cloud_topic: /quad0_pcl_render_node/cloud
+global_planning/w_vdir: 1.2         #没用
+global_planning/w_yawdir: 0.0       #没用
+global_planning/w_firstnode: 0.2    #没用
+# viz
+view_graph: true                       #是否绘制拓扑图
+FrontierManager/view_cluster: true     #是否显示前沿聚类结果
+FrontierManager/view_frt: true         #是否显示原始前沿点
+# graph
+bubble_topo/min_x: 1.01   #单个气泡的最小大小
+bubble_topo/min_y: 1.01
+bubble_topo/min_z: 0.51
+bubble_topo/bubble_min_radius: 0.25   #气泡的最小半径？？？
+bubble_topo/init_region_size_x: 3.3   #初始拓扑区域的大小？？？
+bubble_topo/init_region_size_y: 3.3
+bubble_topo/init_region_size_z: 2.0
+bubble_topo/cube_discrete_size: 0.2   #拓扑地图的栅格尺寸
+bubble_topo/odom_node_distance: 3.0   #移动多少距离后，才更新拓扑
+bubble_astar/safe_distance: 0.2      #拓扑气泡安全距离
+# map param
+max_update_region_num: 100          #没用
+frontier/candidate_dphi: 0.26       #没用
+frontier/candidate_znum: 3          #没用
+lidar_perception/fov_up: 52.0
+lidar_perception/fov_down: -7.0
+lidar_perception/lidar_pitch: 15.0      #雷达安装倾角
+lidar_perception/fov_viewpoint_up: 48.0
+lidar_perception/fov_viewpoint_down: -5.0
+lidar_perception/max_ray_length: 30     #雷达最大范围
+parallel_astar/update_connection_timeout: 0.002   #并行节点插入的时间限制
+parallel_astar/insert_node_timeout: 0.002         #
+FrontierManager/cell_size: 0.4          #前沿栅格分辨率
+FrontierManager/noise_cell_range: 1     #噪声滤波数量
+FrontierManager/good_observation_direction_score: 0.5     #优质前沿方向的打分
+FrontierManager/good_observation_force_trust_length: 4.0  #强制信任的观测距离
+FrontierManager/good_observation_trust_length: 12.0
+FrontierManager/update_length: 15.0 # 比trust_length长一点就行，多了没用
+FrontierManager/cluster_max_size: 7.5
+FrontierManager/cluster_min_size: 1.0
+FrontierManager/cluster_min_radius: 1.0 # DBSCAN 判断邻居的阈值
+FrontierManager/cluster_direction_radius: -0.0 # cos(theta) > cluster_direction_radius
+FrontierManager/cluster_minmum_point_num: 2
+# 柱形采样 视点生成模板
+ViewpointManager/sample_pillar_min_height: 0.5
+ViewpointManager/sample_pillar_max_height: 2.5
+ViewpointManager/sample_pillar_height_layer_num: 6
+ViewpointManager/sample_pillar_min_radius: 0.2
+ViewpointManager/sample_pillar_max_radius: 4.0
+ViewpointManager/sample_pillar_radius_layer_num: 8
+ViewpointManager/sample_pillar_circle_sample_num: 4
+ViewpointManager/local_tsp_size: 10
+# area 规划区域限制
+box_num: 1
+box_0/down: [-5, -7.0, 0.2]
+box_0/up: [75, 12, 3.0]
+dead_area_num: 0
+# trajectory param
+max_traj_len: 10.0
+DilateRadiusSoft: 0.6 # minco threshold 软约束 用来约束走廊有用 约束走廊要用软约束?
+DilateRadiusHard: 0.3 # collision check threshold 硬约束 
+MaxCorridorSize: 3.5  # 最大走廊尺寸
+MaxVelMag: 3.0    #最大速度
+maxBdrMag: 10000.0
+MaxTiltAngle: 0.5 # 最大飞行姿态角度 60°:1.0472 45°:0.7854 30°:0.5236 10°:0.1745
+MinThrust: 15.0   #最小推力
+MaxThrust: 28.0   #最大推力
+VehicleMass: 1.9  #无人机质量
+GravAcc: 9.8
+HorizDrag: 0.70
+VertDrag: 0.80
+ParasDrag: 0.01
+SpeedEps: 0.0001
+WeightT: 2000.0
+WeightSafeT: 400.0
+# [pos_weight, vel_weight, omg_weight, theta_weight, thrust_weight]
+ChiVec: [2.0e+5, 1.5e+4, 1.0e+4, 1.0e+5, 1.0e+5]
+SmoothingEps: 0.015
+IntegralIntervs: 32
+RelCostTol: 1.0e-6
+#param for yaw opt
+yaw_max_vel: 1.0    #最大偏航速度
+yaw_rho_vis: 10000.0
+yaw_time_fwd: 3.0

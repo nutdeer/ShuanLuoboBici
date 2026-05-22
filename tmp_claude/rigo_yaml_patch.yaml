@@ -1,0 +1,44 @@
+# ============================================================================
+# 替换源文件: epic/global_planner/exploration_manager/config/rigo.yaml
+# 替换段落 :
+#   段落 A — bubble_astar/safe_distance（约第 23 行）
+#   段落 B — trajectory param 区块（约第 61-83 行，包含 DilateRadius* / ChiVec / IntegralIntervs / WeightPosSoft）
+# 修复内容 :
+#   - bubble_astar/safe_distance 0.31 → 0.4，前端给走廊收缩留余量
+#   - DilateRadiusSoft 0.6 → 0.45（双通道下 soft_extra = 0.15，避免太保守）
+#   - ChiVec[0] 2.0e+5 → 1.0e+5（硬权重砍半，配合软通道，L-BFGS 步长更健康）
+#   - 新增 WeightPosSoft: 5.0e+4（软通道权重，约硬的 1/2，参 EGO-Planner v2 的 2:1 比例）
+#   - IntegralIntervs 32 → 64 （可选）
+#
+# ⚠ 注意：只列出本次需要改的行；其它配置行原样保留。
+# ============================================================================
+
+# ── 段落 A：前端安全距离 ────────────────────────────────
+bubble_astar/safe_distance: 0.4         # was 0.31；前端路径离障碍 ≥ 0.4，hard=0.3 收缩后还剩 0.1m，rescue 几乎不会触发
+
+# ── 段落 B：trajectory param ───────────────────────────
+max_traj_len: 10.0
+DilateRadiusSoft: 0.45                  # was 0.6；软启动距离，soft_extra = 0.45 - 0.30 = 0.15
+DilateRadiusHard: 0.3                   # 不变；几何收缩的硬禁区
+MaxCorridorSize: 3.5
+MaxVelMag: 3.0
+maxBdrMag: 10000.0
+MaxTiltAngle: 0.5
+MinThrust: 15.0
+MaxThrust: 28.0
+VehicleMass: 1.9
+GravAcc: 9.8
+HorizDrag: 0.70
+VertDrag: 0.80
+ParasDrag: 0.01
+SpeedEps: 0.0001
+WeightT: 2000.0
+WeightSafeT: 400.0
+# 硬通道权重（smoothedL1）：[pos, vel, omg, theta, thrust]
+ChiVec: [1.0e+5, 1.5e+4, 1.0e+4, 1.0e+5, 1.0e+5]   # was [2.0e+5, ...]
+WeightPosSoft: 5.0e+4                   # 新增：软通道（pseudo-Huber）权重，约 ChiVec[0] 的一半
+SmoothingEps: 0.015
+IntegralIntervs: 64                     # was 32（可选，提高采样精度，优化时间约翻倍）
+RelCostTol: 1.0e-6
+
+# 后续 yaw_* 参数全部保持不变。

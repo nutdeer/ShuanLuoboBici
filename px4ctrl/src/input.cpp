@@ -44,6 +44,7 @@ void RC_Data_t::feed(mavros_msgs::RCInConstPtr pMsg)
         ch[i] = std::max(std::min(ch[i], 1.0), -1.0);
     }
 
+    // 数值从 1000 到 2000，映射到 0 到 1
     mode = ((double)msg.channels[4] - 1000.0) / 1000.0;
     gear = ((double)msg.channels[5] - 1000.0) / 1000.0;
     reboot_cmd = ((double)msg.channels[7] - 1000.0) / 1000.0;
@@ -70,7 +71,7 @@ void RC_Data_t::feed(mavros_msgs::RCInConstPtr pMsg)
     if (last_mode < API_MODE_THRESHOLD_VALUE && mode > API_MODE_THRESHOLD_VALUE)
         enter_hover_mode = true;
     else
-        enter_hover_mode = false;
+        enter_hover_mode = false;  // 这是在检测切换沿
 
     if (mode > API_MODE_THRESHOLD_VALUE)
         is_hover_mode = true;

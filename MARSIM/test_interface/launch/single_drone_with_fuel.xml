@@ -129,8 +129,8 @@
                 <param name="use_uav_extra_model" value="$(arg use_uav_extra_model_)" />
 
                 <!-- collision parameter -->
-                <param name="collisioncheck_enable" value="0" />
-                <param name="collision_range" value="0.3" />
+                <param name="collisioncheck_enable" value="1" />
+                <param name="collision_range" value="0.26" />
                 <param name="output_pcd" value="0" />
             </node>
         </group>
@@ -396,7 +396,7 @@
                 <param name="use_uav_extra_model" value="$(arg use_uav_extra_model_)" />
 
                 <!-- collision parameter -->
-                <param name="collisioncheck_enable" value="0" />
+                <param name="collisioncheck_enable" value="1" />
                 <param name="collision_range" value="0.3" />
                 <param name="output_pcd" value="0" />
 

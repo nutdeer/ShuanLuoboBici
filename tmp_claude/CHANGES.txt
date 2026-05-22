@@ -1,0 +1,65 @@
+==========================================================================
+本目录下所有补丁文件总览
+每个 *_patch.* 文件的开头注释里都标明了「替换原文件的哪一段」。
+应用顺序无关，但全部应用完才是一致的状态。
+==========================================================================
+
+需要修改的源文件 → 对应补丁
+
+1. epic/local_planner/minco_planner/include/gcopter/sfc_gen.hpp
+   → tmp_claude/sfc_gen_patch.hpp
+   修复点：
+   - convexCover: 恢复 hpolys.clear()，valid_pc 判空，firi 返回值检查，
+     rescue 分支 iterations 1→3 + 校验非空，gap 多面体加收缩，
+     重复 emplace_back 用 if/else 分流。
+   - shortCut: 加空输入检查。
+
+2. epic/local_planner/minco_planner/include/gcopter/gcopter.hpp
+   → tmp_claude/gcopter_patch.hpp
+   修复点：
+   - 类成员加 soft_extra_, weightPosSoft_。
+   - setup 签名加 dilate_radius_soft, weight_pos_soft 两个参数。
+   - attachPenaltyFunctional 增加「软通道」pseudo-Huber 惩罚。
+   - costFunctional 调用处补传新参数。
+
+3. epic/local_planner/minco_planner/include/plan_manage/planner_manager.h
+   → tmp_claude/planner_manager_h_patch.h
+   修复点：
+   - GcopterConfig 增加 weightPosSoft 字段及读取。
+
+4. epic/local_planner/minco_planner/src/planner_manager.cpp
+   → tmp_claude/planner_manager_cpp_patch.cpp
+   修复点：
+   - 起点不在走廊时的 erase(-1) UB（解开 return false）。
+   - 双重赋值 `bool overlap = overlap = ...`。
+   - gcopter.setup() 调用补传 soft 参数。
+   - flyToSafeRegion 中 surf_points[0].data() 空判空。
+
+5. epic/global_planner/exploration_manager/config/rigo.yaml
+   → tmp_claude/rigo_yaml_patch.yaml
+   修复点：
+   - bubble_astar/safe_distance 0.31 → 0.4
+   - DilateRadiusSoft 0.6 → 0.45
+   - ChiVec[0] 2.0e+5 → 1.0e+5
+   - 新增 WeightPosSoft: 5.0e+4
+   - IntegralIntervs 32 → 64 （可选）
+
+==========================================================================
+关于"软硬约束双通道"的设计简要
+==========================================================================
+
+参考 EGO-Planner v2 的 obstacleGradCostP（poly_traj_optimizer.cpp:1421-1462）：
+两个独立通道并行累加，靠惩罚函数曲率（不是 buffer 大小）区分硬/软。
+
+  硬通道：smoothedL1(violaPos)            ← 已存在，针对收缩后的多面体边界
+  软通道：pseudo-Huber(violaPos + s)      ← 新增，s = max(0, soft - hard)
+
+软通道的 pseudo-Huber: f(e) = r²·(√(1+e²/r²) − 1)
+  - 梯度 e/√(1+e²/r²)，在 e 大时饱和到 ±r·sign(e)，不会和硬通道抢梯度。
+  - 这里取 r = 0.05（与 EGO 一致）。
+
+参数对应关系（rigo.yaml）：
+  DilateRadiusHard = 0.3      几何收缩，硬禁区
+  DilateRadiusSoft = 0.45     软启动距离 → soft_extra = 0.15
+  ChiVec[0]        = 1.0e5    硬权重（原来 2e5 太陡，配合软通道砍半）
+  WeightPosSoft    = 5.0e4    软权重，约硬的一半（参 EGO 比例）

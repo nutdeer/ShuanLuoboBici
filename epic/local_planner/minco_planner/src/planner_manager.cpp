@@ -145,8 +145,8 @@ bool FastPlannerManager::checkTrajCollision(double &collision_time) {
   return true;
 }
 
-bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path,
-                                         bool is_static) {
+// zhou廊生成和轨迹生成
+bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bool is_static) {
 
   ros::Time start = ros::Time::now();
 
@@ -155,26 +155,29 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path,
   int i = 0;
   int j = 0;
   for (j = path.size() - 1; j > 0; j--) {
-    if ((path[j] - path[0]).norm() <= max_traj_len_ / 2.0)
+    if ((path[j] - path[0]).norm() <= max_traj_len_ / 2.0)  // 绝对直线距离
       break;
   }
+  // j是最后一个距离起点小于max_traj_len_ / 2的点的索引，i是第一个距离起点大于max_traj_len_ 的点的索引
+
   double len = 0.0;
   for (i = 1; i < path.size();) {
-    len += (path[i] - path[i - 1]).norm();
+    len += (path[i] - path[i - 1]).norm();  // 这里是路径长度
     if (len > max_traj_len_ || i == path.size() - 1) {
       break;
     }
     i++;
   }
   int end_idx = max(i, j);
+  // 两者取最大，如果路径笔直就不绕圈，如果路径弯曲就不走笔直
   if (end_idx < path.size() - 1) {
     use_shorten_path = true;
   } else {
-    use_shorten_path = false;
+    use_shorten_path = false;  // 判断是不是路径只是截取了一部分
   }
   for (int i = 0; i <= end_idx; i++) {
     path_shorten.emplace_back(path[i].cast<double>());
-  }
+  }  // 这就是当前使用的路径
 
   if (use_shorten_path) {
     Eigen::Vector3f fwd_dir = path[end_idx] - path[end_idx - 1];
@@ -199,6 +202,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path,
       }
     }
   }
+  // 截取路径后，圈boundary扩大3米
   for (int i = 0; i < 2; i++) {
     min_bd[i] = (min_bd[i] - 3.0); // range
     max_bd[i] = (max_bd[i] + 3.0);
@@ -224,16 +228,17 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path,
   surf_points.reserve(cloud_tmp->points.size());
   for (const pcl::PointXYZ &point : cloud_tmp->points) {
     surf_points.emplace_back(point.x, point.y, point.z);
-  }
+  }  // 降采样之后的点
 
   ros::Time point_process_end_stamp = ros::Time::now();
 
   std::vector<Eigen::MatrixX4d> hPolys; // 多面体飞行走廊
-
+  // safe flight corridor generation
+  // 生成飞行走廊
   sfc_gen::convexCover(gcopter_viz_, path_shorten, surf_points,
                        min_bd.cast<double>(), max_bd.cast<double>(), 7.0,
                        gcopter_config_->corridor_size, hPolys, 1e-6,
-                       gcopter_config_->dilateRadiusSoft);
+                       gcopter_config_->dilateRadiusHard);  // 前端改成硬约束
   Eigen::Matrix<double, 3, 4> iniState;
   Eigen::Matrix<double, 3, 4> finState;
   double time_now = (ros::Time::now() - local_data_.start_time_).toSec();
@@ -261,7 +266,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path,
       break;
     }
   }
-  if (start_idx == -1) {
+  if (start_idx == -1) {  // 当前无人机不在飞行走廊里
     ROS_ERROR("current position not in corridor");
     double time;
     bool safe =
@@ -270,10 +275,10 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path,
       return flyToSafeRegion(is_static);
     // return false;
   }
-  if (start_idx != 0) {
+  if (start_idx != 0) {  // 这个时候如果值是 -1 ，同样触发，这时候 会发生越界
     hPolys.erase(hPolys.begin(), hPolys.begin() + start_idx);
   }
-  sfc_gen::shortCut(hPolys);
+  sfc_gen::shortCut(hPolys);  // 重新做飞行走廊头
 
   // ros::Duration(1.0).sleep();
 
