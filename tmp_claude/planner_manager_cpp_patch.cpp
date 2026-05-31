@@ -74,7 +74,7 @@
   int front = 0;
   int back = 1;
   while (back < static_cast<int>(hPolys.size()) - 1) {
-    bool overlap = geo_utils::overlap(hPolys[front], hPolys[back], 1e-2);   // 修复：去掉双重赋值
+    bool overlap = geo_utils::overlap(hPolys[front], hPolys[back], 1e-2);
     if (overlap) {
       front += 1;
       back  += 1;

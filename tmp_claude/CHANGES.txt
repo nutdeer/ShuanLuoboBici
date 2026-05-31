@@ -31,7 +31,7 @@
    → tmp_claude/planner_manager_cpp_patch.cpp
    修复点：
    - 起点不在走廊时的 erase(-1) UB（解开 return false）。
-   - 双重赋值 `bool overlap = overlap = ...`。
+   - 双重赋值 `bool overlap = overlap = ...`。  // 这里改了
    - gcopter.setup() 调用补传 soft 参数。
    - flyToSafeRegion 中 surf_points[0].data() 空判空。
 

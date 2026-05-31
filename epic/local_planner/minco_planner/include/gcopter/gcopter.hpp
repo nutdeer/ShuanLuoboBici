@@ -662,7 +662,7 @@ private:
   }
 
   static inline double costDistance(void *ptr, const Eigen::VectorXd &xi, Eigen::VectorXd &gradXi) {
-    void **dataPtrs = (void **)ptr;
+    void **dataPtrs = (void **)ptr;  // 告诉是存放了 4 个指针的数组
     const double &dEps = *((const double *)(dataPtrs[0]));
     const Eigen::Vector3d &ini = *((const Eigen::Vector3d *)(dataPtrs[1]));
     const Eigen::Vector3d &fin = *((const Eigen::Vector3d *)(dataPtrs[2]));
@@ -725,22 +725,40 @@ private:
     return cost;
   }
 
+/**
+ * @brief 获取最短路径,通过数值优化 l-bfgs
+ * @param ini 起点
+ * @param fin 终点
+ * @param vPolys 多面体表示的走廊
+ * @param smoothD 平滑距离
+ * @param path 输出路径,包含起点和终点
+ */
   static inline void getShortestPath(const Eigen::Vector3d &ini, const Eigen::Vector3d &fin,
                                      const PolyhedraV &vPolys, const double &smoothD,
                                      Eigen::Matrix3Xd &path) {
-    const int overlaps = vPolys.size() / 2;
+    const int overlaps = vPolys.size() / 2;  // 计算 重叠区域 数量
+    // 0：第一个多面体 1：1_2交 2:第2个多面体 3：2_3交 4：第3个多面体 ... 一定是 偶数个
     Eigen::VectorXi vSizes(overlaps);
-    for (int i = 0; i < overlaps; i++) {
-      vSizes(i) = vPolys[2 * i + 1].cols();
+    for (int i = 0; i < overlaps; i++) {  
+      vSizes(i) = vPolys[2 * i + 1].cols();  // 注意 2 * i + 1  // 第 ℹi 行 表示了 定点的数量 cols-列
     }
-    Eigen::VectorXd xi(vSizes.sum());
+    Eigen::VectorXd xi(vSizes.sum());  // 重叠区域点数和
     for (int i = 0, j = 0; i < overlaps; i++) {
+      // Constant 常数
+      // 把 xi 的属于同一交集的部分设置为相同的常数值 sqrt(1.0 / vSizes(i)
+      // 不理解
       xi.segment(j, vSizes(i)).setConstant(sqrt(1.0 / vSizes(i)));
       j += vSizes(i);
     }
 
     double minDistance;
     void *dataPtrs[4];
+    /**
+     * (&smoothD) 取地址
+     * (void *) 强制类型转换为 void* 指针类型
+     * 64位操作系统下所有指针都是 8 字节
+     * 只关心数据存储在哪里，不关心地址是什么类型
+     */
     dataPtrs[0] = (void *)(&smoothD);
     dataPtrs[1] = (void *)(&ini);
     dataPtrs[2] = (void *)(&fin);
@@ -751,18 +769,24 @@ private:
     shortest_path_params.g_epsilon = 1.0e-5;
 
     lbfgs::lbfgs_optimize(xi, minDistance, &GCOPTER_PolytopeSFC::costDistance, nullptr, nullptr,
-                          dataPtrs, shortest_path_params);
+                          dataPtrs,  // 直接把数据指针传递给 自定义的 costDistance 代价函数 ， 只转手，不处理 
+                                      //那里有解引用
+                           shortest_path_params);
 
-    path.resize(3, overlaps + 2);
+    path.resize(3, overlaps + 2);  // 中间数据会被清零的
     path.leftCols<1>() = ini;
-    path.rightCols<1>() = fin;
-    Eigen::VectorXd r;
-    for (int i = 0, j = 0, k; i < overlaps; i++, j += k) {
-      k = vPolys[2 * i + 1].cols();
-      Eigen::Map<const Eigen::VectorXd> q(xi.data() + j, k);
+    path.rightCols<1>() = fin;  // 设置路径的起点和终点
+    Eigen::VectorXd r; 
+    
+    // 重叠空间内的 点 做填充
+    for (int i = 0, j = 0, k; i < overlaps; i++, j += k) {  // 每个飞行走廊重叠区都会设置一个最优点
+      k = vPolys[2 * i + 1].cols();  // k 是第 i 个重叠区的 点 数量
+      Eigen::Map<const Eigen::VectorXd> q(xi.data() + j, k);  // xi.data() 是地址
       r = q.normalized().head(k - 1);
       path.col(i + 1) =
-      vPolys[2 * i + 1].rightCols(k - 1) * r.cwiseProduct(r) + vPolys[2 * i + 1].col(0);
+      vPolys[2 * i + 1].rightCols(k - 1) // 第 i 个重叠区的 支持向量
+      * r.cwiseProduct(r)               // 乘以 r^2
+      + vPolys[2 * i + 1].col(0);
     }
 
     return;
@@ -784,6 +808,7 @@ private:
       nv = curIV.cols();
       curIOB.resize(3, nv);
       curIOB.col(0) = curIV.col(0);
+      // 注意到有减去 curIV.col(0) 的操作，说明后面的值全是列向量
       curIOB.rightCols(nv - 1) = curIV.rightCols(nv - 1).colwise() - curIV.col(0);
       vPs.push_back(curIOB);
 
@@ -837,6 +862,10 @@ private:
   }
 
 public:
+  /**
+   * @brief 轨迹优化器的初始化配置函数
+   * 
+   */
   // magnitudeBounds = [v_max, omg_max, theta_max, thrust_min, thrust_max]^T
   // penaltyWeights = [pos_weight, vel_weight, omg_weight, theta_weight, thrust_weight]^T
   // physicalParams = [vehicle_mass,gravitational_acceleration, horitonral_drag_coeff,
@@ -848,15 +877,18 @@ public:
                     const int &integralResolution, const Eigen::VectorXd &magnitudeBounds,
                     const Eigen::VectorXd &penaltyWeights, const Eigen::VectorXd &physicalParams) {
     dilate_radius_ = dilate_radius; // 膨胀半径
-    rho = timeWeight;
-    headPVAJ = initialPVAJ;
-    tailPVAJ = terminalPVAJ;
+    rho = timeWeight;  // 时间权重
+    headPVAJ = initialPVAJ;  // 起点状态（位置P、速度V、加速度A、jerk）
+    tailPVAJ = terminalPVAJ;  // 终点 terminal
 
     hPolytopes = safeCorridor;
+    // 对安全走廊中每个多面体的平面法向量进行归一化处理
     for (size_t i = 0; i < hPolytopes.size(); i++) {
       const Eigen::ArrayXd norms = hPolytopes[i].leftCols<3>().rowwise().norm();
       hPolytopes[i].array().colwise() /= norms;
     } // hPolytope 的每个平面 法向量 归一化
+
+    // 转化多面体表达方式
     if (!processCorridor(hPolytopes, vPolytopes)) {
       return false;
     }

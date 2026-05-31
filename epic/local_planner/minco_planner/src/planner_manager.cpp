@@ -111,10 +111,6 @@ bool FastPlannerManager::checkTrajVelocity() {
 }
 
 bool FastPlannerManager::checkTrajCollision(double &collision_time) {
-  PointType target;
-  PointVector nearest_point;
-  vector<float> PointDist;
-
   auto traj = local_data_.minco_traj_;
   double duration = local_data_.duration_;
   double curr_time = (ros::Time::now() - local_data_.start_time_).toSec();
@@ -284,15 +280,14 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
 
   ros::Time hpoly_gen_end = ros::Time::now();
 
-  if (hPolys.size() < 2) {
+  if (hPolys.size() < 2) {  // 只有1个多面体或者没有多面体
     cout << "hPolys size < 2" << endl;
     return false;
   }
   int front = 0;
   int back = 1;
   while (back < hPolys.size() - 1) {
-    bool overlap = overlap =
-        geo_utils::overlap(hPolys[front], hPolys[back], 1e-2);
+    bool overlap = geo_utils::overlap(hPolys[front], hPolys[back], 1e-2);  // debug 两边赋值
     if (overlap) {
       front += 1;
       back += 1;
@@ -341,7 +336,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
           gcopter_config_->weightT, gcopter_config_->dilateRadiusSoft, iniState,
           finState, hPolys, INFINITY, gcopter_config_->smoothingEps,
           quadratureRes, magnitudeBounds, penaltyWeights, physicalParams)) {
-    std::cout << "\n\n\n\n\n\n\n\nsetup failed!" << std::endl;
+    std::cout << "\n\n[ERROR]1\n[ERROR]2\n[ERROR]3\n[ERROR]4\n[ERROR]5\n[ERROR]6\n[ERROR]7 setup failed!" << std::endl;
 
     return false;
   }

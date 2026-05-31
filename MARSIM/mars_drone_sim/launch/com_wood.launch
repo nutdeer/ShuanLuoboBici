@@ -45,8 +45,8 @@
                 <arg name="uav_num_" value="$(arg drone_num)" />
                 <arg name="lidar_type" value="mid360" />
                 
-                <arg name="init_x_" value="24.0" />
-                <arg name="init_y_" value="-48.0" />
+                <arg name="init_x_" value="2.6.0" />
+                <arg name="init_y_" value="-2.0" />
                 <arg name="init_z_" value="1.0" />
                 <arg name="init_yaw" value="0.0" />
                 <arg name="lidar_pitch_" value="$(arg lidar_pitch)" />

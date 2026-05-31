@@ -122,6 +122,7 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
                         const double eps = 1.0e-6, const double dilate_radius_ = 0.1) {
   // hpolys.clear();
   const int n = path.size();
+  // 矩阵 6 个面
   Eigen::Matrix<double, 6, 4> bd = Eigen::Matrix<double, 6, 4>::Zero();
   bd(0, 0) = 1.0;
   bd(1, 0) = -1.0;
@@ -135,10 +136,15 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
   std::vector<Eigen::Vector3d> valid_pc;
   std::vector<Eigen::Vector3d> bs;
   valid_pc.reserve(points.size());
+
+  auto shrink_hp = [&](Eigen::MatrixX4d &hp, double radius) {
+    hp.col(3) = hp.col(3).array() - radius * hp.leftCols(3).rowwise().norm().array();
+  };
+
   for (int i = 1; i < n;) {
     a = b;
     // 路径太长了，沿着方向拓展最大距离progress
-    if ((a - path[i]).norm() > progress) {
+    if ((a - path[i]).norm() > progress) {  // 就是按 7 的距离切分路径
       b = (path[i] - a).normalized() * progress + a;
     } else {
       b = path[i];
@@ -160,15 +166,16 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
         valid_pc.emplace_back(p);
       }
     }
-    Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(valid_pc[0].data(), 3, valid_pc.size());
+    // 如果box没有点云，valid_pc 是空的，valid_pc[0]非法
+    const double *data_tmp = valid_pc.empty() ? nullptr : valid_pc[0].data();
+    Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(data_tmp, 3, valid_pc.size());
     firi::firi(bd, pc, a, b, hp); // 计算出包含a和b的凸包
     Eigen::MatrixX4d hp_origin = hp;
-
     // 将凸包向里收缩，收缩大小为膨胀半径
-    // if (i != 1)
-      hp.col(3) = hp.col(3).array() + dilate_radius_ * hp.leftCols(3).rowwise().norm().array();
-    Eigen::Vector4d bh(b(0), b(1), b(2), 1.0);
-    double r = dilate_radius_;
+    shrink_hp(hp, dilate_radius_);
+
+    Eigen::Vector4d bh(b(0), b(1), b(2), 1.0); // 其次坐标 b 
+
     // 适当放宽条件，不能没有可行解
 
     if (((hp * bh).array() > -eps).cast<int>().sum() > 0) {

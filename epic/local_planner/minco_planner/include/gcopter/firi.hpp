@@ -244,8 +244,8 @@ inline bool maxVolInsEllipsoid(const Eigen::MatrixX4d& hPoly,
  *
  * @param bd the matrix bd
  * @param pc the matrix pc
- * @param a the vector a
- * @param b the vector b
+ * @param a the vector
+ * @param b the vector
  * @param hPoly the output matrix hPoly
  * @param iterations the number of iterations (default: 4)
  * @param epsilon the epsilon value (default: 1.0e-6)
