@@ -120,7 +120,10 @@ namespace sfc_gen {
 inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vector<Eigen::Vector3d> &path, const std::vector<Eigen::Vector3d> &points,
                         const Eigen::Vector3d &lowCorner, const Eigen::Vector3d &highCorner, const double &progress, const double &range, std::vector<Eigen::MatrixX4d> &hpolys,
                         const double eps = 1.0e-6, const double dilate_radius_ = 0.1) {
-  // hpolys.clear();
+  (void)vizer;
+  (void)eps;
+  (void)dilate_radius_;
+  hpolys.clear();
   const int n = path.size();
   // 矩阵 6 个面
   Eigen::Matrix<double, 6, 4> bd = Eigen::Matrix<double, 6, 4>::Zero();
@@ -136,10 +139,6 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
   std::vector<Eigen::Vector3d> valid_pc;
   std::vector<Eigen::Vector3d> bs;
   valid_pc.reserve(points.size());
-
-  auto shrink_hp = [&](Eigen::MatrixX4d &hp, double radius) {
-    hp.col(3) = hp.col(3).array() + radius * hp.leftCols(3).rowwise().norm().array();
-  };
 
   for (int i = 1; i < n;) {
     a = b;
@@ -160,9 +159,6 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
     bd(5, 3) = +std::max(std::min(a(2), b(2)) - range, lowCorner(2));
 
     valid_pc.clear();
-    // zwx test
-    static long double num_zwx_test = 1.0;
-    static long double num_zwx_test_remake_because_b = 1.0;
 
     for (const Eigen::Vector3d &p : points) {
       if ((bd.leftCols<3>() * p + bd.rightCols<1>()).maxCoeff() < 0.0) {
@@ -175,37 +171,19 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
     const double *data_tmp = valid_pc.empty() ? nullptr : valid_pc[0].data();
     // 转换下格式发给FIRI
     Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(data_tmp, 3, valid_pc.size());  
-    firi::firi(bd, pc, a, b, hp); // 计算出包含a和b的凸包 ，就是必须包含a和b,这样a和b的路径也都在飞行走廊里了
-    Eigen::MatrixX4d hp_origin = hp;
-    // 将凸包向里收缩，收缩大小为膨胀半径
-    shrink_hp(hp, dilate_radius_);
-
-    Eigen::Vector4d bh(b(0), b(1), b(2), 1.0); // 其次坐标 b 
-
-    // 适当放宽条件，不能没有可行解
-    num_zwx_test +=1.0;
-
-    if (((hp * bh).array() > -eps).cast<int>().sum() > 0) {
-      firi::firi(bd, pc, a, a, hp, 1);
-      hp.col(3) = hp.col(3).array() + dilate_radius_ * hp.leftCols(3).rowwise().norm().array();
-      hpolys.emplace_back(hp);
-      firi::firi(bd, pc, (a + b) / 2.0, (a + b) / 2.0, hp, 1);
-      hp.col(3) = hp.col(3).array() + dilate_radius_ * hp.leftCols(3).rowwise().norm().array();
-      hpolys.emplace_back(hp);
-      firi::firi(bd, pc, b, b, hp, 1);
-      hp.col(3) = hp.col(3).array() + dilate_radius_ * hp.leftCols(3).rowwise().norm().array();
-      hpolys.emplace_back(hp);
-
-      num_zwx_test_remake_because_b += 1.0;
-      ROS_WARN_STREAM_THROTTLE(1.0, "[SFC gen] b outside poly,but have to use. re_firi proportion= " << num_zwx_test_remake_because_b/num_zwx_test *100.0 << "%");
-
+    if (!firi::firi(bd, pc, a, b, hp)) { // 计算出包含a和b的凸包
+      ROS_ERROR_STREAM_THROTTLE(1.0, "[SFC gen] firi failed, skip segment");
+      continue;
     }
 
     if (hpolys.size() != 0) {
       const Eigen::Vector4d ah(a(0), a(1), a(2), 1.0);
       if (3 <= ((hp * ah).array() > -eps).cast<int>().sum() + ((hpolys.back() * ah).array() > -eps).cast<int>().sum()) {
-        firi::firi(bd, pc, a, a, gap, 1);
-        hpolys.emplace_back(gap);
+        if (firi::firi(bd, pc, a, a, gap, 1)) {
+          hpolys.emplace_back(gap);
+        } else {
+          ROS_ERROR_STREAM_THROTTLE(1.0, "[SFC gen] gap firi failed");
+        }
       }
     }
 
