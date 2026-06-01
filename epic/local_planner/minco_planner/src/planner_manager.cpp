@@ -386,7 +386,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   }
   // 飞行走廊内障碍点检测
   const auto sfc_raw_stats = checkRawPointsInCorridor(Searched_Points, hPolys, gcopter_config_->dilateRadiusHard);
-  if(sfc_raw_stats.raw_point_num > 0)
+  if(sfc_raw_stats.deepest_inside > 1e-6)
   {
     ROS_WARN_STREAM_THROTTLE(
     1.0,
