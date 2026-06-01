@@ -71,5 +71,3 @@ add_library(plan_manage
 )
 target_link_libraries(plan_manage ${catkin_LIBRARIES} )
 
-
-

@@ -15,9 +15,80 @@
 #include <std_msgs/Int32.h>
 #include <thread>
 #include <visualization_msgs/Marker.h>
+#include <limits>
 
 namespace fast_planner {
-// SECTION interfaces for setup and query
+// 该结构体用于统计原始点云在安全飞行走廊（SFC）中的分布情况
+struct SfcRawPointStats {
+    /** @brief 原始点数 */
+    int raw_point_num = 0;  
+    
+    /** @brief 在安全飞行走廊内的点数，一个点只记一次 */
+    int inside_point_num = 0;
+
+    /** @brief 最差多边形索引 */
+    // 要考虑这个吗
+    int worst_poly_idx = -1;
+    /** @brief 深入了多少 */
+    double deepest_inside = 0.0;
+    std::vector<int> inside_per_poly;
+  };
+static SfcRawPointStats checkRawPointsInCorridor(
+      const PointVector& raw_points,
+      const std::vector<Eigen::MatrixX4d>& hPolys,
+      const double expanded_radius = 0.27,
+      const double eps = 1.0e-6) {
+    SfcRawPointStats stats;
+    stats.raw_point_num = static_cast<int>(raw_points.size());
+    stats.inside_per_poly.assign(hPolys.size(), 0);
+
+    std::vector<Eigen::MatrixX4d> checkPolys;
+    checkPolys.reserve(hPolys.size());
+    for (const auto& hp : hPolys) {
+      Eigen::MatrixX4d hp_check = hp;
+      hp_check.col(3) =
+          hp_check.col(3).array()
+          - expanded_radius * hp_check.leftCols(3).rowwise().norm().array();
+      checkPolys.push_back(hp_check);
+    }
+
+    for (const auto& pt : raw_points) {  // 原始点遍历
+      Eigen::Vector4d ph(pt.x, pt.y, pt.z, 1.0);
+
+      for (int i = 0; i < static_cast<int>(hPolys.size()); ++i) {
+        auto hp = checkPolys[i];
+
+        double max_signed_dist = -std::numeric_limits<double>::infinity();
+        bool has_valid_plane = false;
+
+        for (int r = 0; r < hp.rows(); ++r) {
+          const double n_norm = hp.row(r).head<3>().norm();
+          if (n_norm < 1.0e-9) {
+            continue;
+          }
+          has_valid_plane = true;
+
+          const double signed_dist = hp.row(r).dot(ph) / n_norm;
+          max_signed_dist = std::max(max_signed_dist, signed_dist);
+        }
+
+        if (has_valid_plane && max_signed_dist <= eps) {
+          stats.inside_point_num++;
+          stats.inside_per_poly[i]++;
+
+          const double inside_depth = -max_signed_dist;
+          if (inside_depth > stats.deepest_inside) {
+            stats.deepest_inside = inside_depth;
+            stats.worst_poly_idx = i;
+          }
+
+          break;
+        }
+      }
+    }
+
+    return stats;
+  }
 
 FastPlannerManager::FastPlannerManager() {}
 
@@ -216,7 +287,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
       new pcl::PointCloud<pcl::PointXYZ>);
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_tmp(
       new pcl::PointCloud<pcl::PointXYZ>);
-  cloud_origin->points = Searched_Points;
+  cloud_origin->points = Searched_Points;  // 酱菜阳前的点
   sor.setInputCloud(cloud_origin);
   sor.setLeafSize(0.2, 0.2, 0.2);
   sor.filter(*cloud_tmp);
@@ -287,27 +358,49 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   int front = 0;
   int back = 1;
   while (back < hPolys.size() - 1) {
-    bool overlap = geo_utils::overlap(hPolys[front], hPolys[back], 1e-2);  // debug 两边赋值
+    bool overlap = geo_utils::overlap(hPolys[front], hPolys[back], 1e-2);  
     if (overlap) {
       front += 1;
       back += 1;
     } else {
-      break;
+      break;  // 只要有不相交的对面体就立刻停止
     }
   }
-  if (front != hPolys.size() - 2) {
-    ROS_ERROR("front != hPolys.size() - 2");
+  // front 是最后一个与前面多面体相交的索引
+  bool is_polys_not_overlap = false;
+  if (front != hPolys.size() - 2) {  
+    ROS_ERROR("front != hPolys.size() - 2, not all polys overlap");
+    // 寻找内点
     Eigen::Vector3d inner;
     geo_utils::findInterior(hPolys[front], inner);
+    // 把内点设为目标
     finState << inner, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
         Eigen::Vector3d::Zero();
-    hPolys.resize(front + 1);
-    gcopter_viz_->visualizePolytope(hPolys, true);
+    hPolys.resize(front + 1);  // 丢弃不联通的部分
+    is_polys_not_overlap = true;
   } else {
     finState << path_shorten.back(), Eigen::Vector3d::Zero(),
-        Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero();
-    gcopter_viz_->visualizePolytope(hPolys);
+        Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero();  // 给位置，速度加加速度都设为0
+    
+    is_polys_not_overlap = false;
   }
+  // 飞行走廊内障碍点检测
+  const auto sfc_raw_stats = checkRawPointsInCorridor(Searched_Points, hPolys, gcopter_config_->dilateRadiusHard);
+  if(sfc_raw_stats.raw_point_num > 0)
+  {
+    ROS_WARN_STREAM_THROTTLE(
+    1.0,
+    "[SFC raw check] raw_points=" << sfc_raw_stats.raw_point_num
+    << " downsample_points=" << surf_points.size()
+    << " hpolys=" << hPolys.size()
+    << " inside=" << sfc_raw_stats.inside_point_num
+    << " deepest=" << sfc_raw_stats.deepest_inside
+    << " worst_poly=" << sfc_raw_stats.worst_poly_idx
+    << " worst_poly's inside_raw_points=" << sfc_raw_stats.inside_per_poly[sfc_raw_stats.worst_poly_idx]
+    );
+  }
+
+  gcopter_viz_->visualizePolytope(hPolys,is_polys_not_overlap);
   gcopter_viz_->visualizeRoute(path);
 
   gcopter::GCOPTER_PolytopeSFC gcopter;

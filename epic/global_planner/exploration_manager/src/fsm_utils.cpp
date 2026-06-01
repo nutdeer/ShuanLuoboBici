@@ -76,7 +76,7 @@ int FastExplorationFSM::callExplorationPlanner() {
   vector<Eigen::Vector3f> path_next_goal_tmp;     // 这个里面存储规划的目标位置
   path_next_goal_tmp.push_back(path_next_goal[0]);
 
-  for (int i = 1; i < path_next_goal.size();) {
+  for (size_t i = 1; i < path_next_goal.size();) {
     Eigen::Vector3f end_pt = path_next_goal_tmp.back();
     if ((path_next_goal[i] - end_pt).norm() > 1.0) {
       Eigen::Vector3f dir = (path_next_goal[i] - end_pt).normalized();

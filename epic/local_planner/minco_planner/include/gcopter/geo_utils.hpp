@@ -39,7 +39,10 @@ namespace geo_utils
 
     // Each row of hPoly is defined by h0, h1, h2, h3 as
     // h0*x + h1*y + h2*z + h3 <= 0
-    inline bool findInterior(const Eigen::MatrixX4d &hPoly,
+    /**
+     * @brief 找到最内部的点
+     */
+    inline bool findInterior(const Eigen::MatrixX4d &hPoly, 
                              Eigen::Vector3d &interior)
     {
         const int m = hPoly.rows();
@@ -59,7 +62,9 @@ namespace geo_utils
 
         return minmaxsd < 0.0 && !std::isinf(minmaxsd);
     }
-
+    /**
+     * @brief 检测两个超平面是否相交
+     */
     inline bool overlap(const Eigen::MatrixX4d &hPoly0,
                         const Eigen::MatrixX4d &hPoly1,
                         const double eps = 1.0e-6)

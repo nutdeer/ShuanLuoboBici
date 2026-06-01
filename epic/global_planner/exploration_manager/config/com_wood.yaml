@@ -61,7 +61,7 @@ dead_area_num: 0
 # trajectory param
 max_traj_len: 10.0
 DilateRadiusSoft: 0.6 # minco threshold 软约束
-DilateRadiusHard: 0.4 # collision check threshold 硬约束
+DilateRadiusHard: 0.27 # collision check threshold 硬约束
 MaxCorridorSize: 3.5
 MaxVelMag: 1.5    #最大速度
 maxBdrMag: 10000.0

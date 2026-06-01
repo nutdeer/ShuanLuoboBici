@@ -251,6 +251,24 @@ inline bool maxVolInsEllipsoid(const Eigen::MatrixX4d& hPoly,
  * @param epsilon the epsilon value (default: 1.0e-6)
  * @note 生成包含a b 不包含pc的最大凸包
  * @return true if the algorithm completes successfully, false otherwise
+ *   a 和 b 是凸包必须包含的两个"锚点"。
+ * deepseek
+  凸多面体包含 a 和 b → 由凸性，整个线段 [a, b] 都在里面 →
+  保证走廊沿路径方向连通。
+  算法每轮迭代的切线生成中（第 292-316 行），核心逻辑是三层兜底：
+  对每个障碍物点，在单位球上做切平面：
+    第1层：检查切平面是否切掉了 a？
+           ↓ 是
+           调整切平面，让它刚好擦过 a，但仍然把障碍物挡在外面
+    第2层：再检查是否切掉了 b？
+           ↓ 是
+           调整切平面，让它刚好擦过 b
+    第3层：如果调整后仍然切掉了 a？
+           ↓ 是
+           用 a、b、障碍物点三个点确定一个平面，
+           即法向量 = (a - 障碍物) × (b - 障碍物)
+           保证 a 和 b 都在平面正确的一侧
+  这三层检查就是为了无论如何都不能把 a 或 b 排除在凸包之外。
  */
 inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
                  const Eigen::Vector3d& a, const Eigen::Vector3d& b,
@@ -288,7 +306,7 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 		const Eigen::VectorXd distDs = forwardD.cwiseAbs().cwiseQuotient(forwardB.rowwise().norm());
 		Eigen::MatrixX4d tangents(N, 4); 
 		Eigen::VectorXd distRs(N);       
-
+		// 切线生成核心
 		for (int i = 0; i < N; i++) { 
 			distRs(i) = forwardPC.col(i).norm();                                    
 			tangents(i, 3) = -distRs(i);                                            

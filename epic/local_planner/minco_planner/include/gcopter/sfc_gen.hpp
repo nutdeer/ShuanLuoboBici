@@ -108,14 +108,14 @@ namespace sfc_gen {
  * vector
  * @param highCorner   the upper corner of the bounding box represented as a 3D
  * vector
- * @param progress     the progress along the path as a double value 7
- * @param range        the range as a double value 3
- * @param hpolys       the vector of 4x4 matrices representing the convex
+ * @param progress     沿路径切分步长 as a double value 7
+ * @param range        the range as a double value 3  每个凸多面体的搜索范围
+ * @param hpolys       the vector of 4x4 matrices representing the convex  输出：凸多面体序列（每个是 MatrixX4d，半空间表示）
  * polygons
  * @param eps          the epsilon value as a double (optional, default value
  * is 1.0e-6)
  *
- * @throws ErrorType   description of error
+ * @throws dilate_radius_   硬约束半径
  */
 inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vector<Eigen::Vector3d> &path, const std::vector<Eigen::Vector3d> &points,
                         const Eigen::Vector3d &lowCorner, const Eigen::Vector3d &highCorner, const double &progress, const double &range, std::vector<Eigen::MatrixX4d> &hpolys,
@@ -138,7 +138,7 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
   valid_pc.reserve(points.size());
 
   auto shrink_hp = [&](Eigen::MatrixX4d &hp, double radius) {
-    hp.col(3) = hp.col(3).array() - radius * hp.leftCols(3).rowwise().norm().array();
+    hp.col(3) = hp.col(3).array() + radius * hp.leftCols(3).rowwise().norm().array();
   };
 
   for (int i = 1; i < n;) {
@@ -160,16 +160,22 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
     bd(5, 3) = +std::max(std::min(a(2), b(2)) - range, lowCorner(2));
 
     valid_pc.clear();
+    // zwx test
+    static long double num_zwx_test = 1.0;
+    static long double num_zwx_test_remake_because_b = 1.0;
+
     for (const Eigen::Vector3d &p : points) {
       if ((bd.leftCols<3>() * p + bd.rightCols<1>()).maxCoeff() < 0.0) {
         // 小于0表示点在某一个框里，可以用ikd-tree的接口代替这个函数，利用bd进行box-select
         valid_pc.emplace_back(p);
       }
-    }
+    } // 筛选 bd 中的点
+
     // 如果box没有点云，valid_pc 是空的，valid_pc[0]非法
     const double *data_tmp = valid_pc.empty() ? nullptr : valid_pc[0].data();
-    Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(data_tmp, 3, valid_pc.size());
-    firi::firi(bd, pc, a, b, hp); // 计算出包含a和b的凸包
+    // 转换下格式发给FIRI
+    Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(data_tmp, 3, valid_pc.size());  
+    firi::firi(bd, pc, a, b, hp); // 计算出包含a和b的凸包 ，就是必须包含a和b,这样a和b的路径也都在飞行走廊里了
     Eigen::MatrixX4d hp_origin = hp;
     // 将凸包向里收缩，收缩大小为膨胀半径
     shrink_hp(hp, dilate_radius_);
@@ -177,6 +183,7 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
     Eigen::Vector4d bh(b(0), b(1), b(2), 1.0); // 其次坐标 b 
 
     // 适当放宽条件，不能没有可行解
+    num_zwx_test +=1.0;
 
     if (((hp * bh).array() > -eps).cast<int>().sum() > 0) {
       firi::firi(bd, pc, a, a, hp, 1);
@@ -188,6 +195,10 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
       firi::firi(bd, pc, b, b, hp, 1);
       hp.col(3) = hp.col(3).array() + dilate_radius_ * hp.leftCols(3).rowwise().norm().array();
       hpolys.emplace_back(hp);
+
+      num_zwx_test_remake_because_b += 1.0;
+      ROS_WARN_STREAM_THROTTLE(1.0, "[SFC gen] b outside poly,but have to use. re_firi proportion= " << num_zwx_test_remake_because_b/num_zwx_test *100.0 << "%");
+
     }
 
     if (hpolys.size() != 0) {
