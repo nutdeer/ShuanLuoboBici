@@ -8,7 +8,6 @@
  */
 // #include <fstream>
 #include <algorithm>
-#include <cmath>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -34,15 +33,35 @@ struct SfcRawPointStats {
     /** @brief 深入了多少 */
     double deepest_inside = 0.0;
     std::vector<int> inside_per_poly;
+    std::vector<Eigen::Vector3d> inside_points;
   };
+
+struct SfcInsidePointCandidate {
+  double depth = 0.0;
+  Eigen::Vector3d point = Eigen::Vector3d::Zero();
+};
+
+static int getWorstPolyInsideCount(const SfcRawPointStats& stats) {
+  if (stats.worst_poly_idx < 0 ||
+      stats.worst_poly_idx >= static_cast<int>(stats.inside_per_poly.size())) {
+    return 0;
+  }
+  return stats.inside_per_poly[stats.worst_poly_idx];
+}
+
 static SfcRawPointStats checkRawPointsInCorridor(
       const PointVector& raw_points,
       const std::vector<Eigen::MatrixX4d>& hPolys,
       const double expanded_radius = 0.27,
+      const int max_collect_points = 0,
       const double eps = 1.0e-6) {
     SfcRawPointStats stats;
     stats.raw_point_num = static_cast<int>(raw_points.size());
     stats.inside_per_poly.assign(hPolys.size(), 0);
+    std::vector<SfcInsidePointCandidate> inside_point_candidates;
+    if (max_collect_points > 0) {
+      inside_point_candidates.reserve(max_collect_points);
+    }
 
     std::vector<Eigen::MatrixX4d> checkPolys;
     checkPolys.reserve(hPolys.size());
@@ -58,7 +77,7 @@ static SfcRawPointStats checkRawPointsInCorridor(
       Eigen::Vector4d ph(pt.x, pt.y, pt.z, 1.0);
 
       for (int i = 0; i < static_cast<int>(hPolys.size()); ++i) {
-        auto hp = checkPolys[i];
+        const auto& hp = checkPolys[i];
 
         double max_signed_dist = -std::numeric_limits<double>::infinity();
         bool has_valid_plane = false;
@@ -75,10 +94,14 @@ static SfcRawPointStats checkRawPointsInCorridor(
         }
 
         if (has_valid_plane && max_signed_dist <= eps) {
+          const double inside_depth = -max_signed_dist;
           stats.inside_point_num++;
           stats.inside_per_poly[i]++;
+          if (max_collect_points > 0) {
+            inside_point_candidates.push_back(
+                {inside_depth, Eigen::Vector3d(pt.x, pt.y, pt.z)});
+          }
 
-          const double inside_depth = -max_signed_dist;
           if (inside_depth > stats.deepest_inside) {
             stats.deepest_inside = inside_depth;
             stats.worst_poly_idx = i;
@@ -89,72 +112,24 @@ static SfcRawPointStats checkRawPointsInCorridor(
       }
     }
 
+    if (max_collect_points > 0 && !inside_point_candidates.empty()) {
+      if (static_cast<int>(inside_point_candidates.size()) > max_collect_points) {
+        auto keep_end = inside_point_candidates.begin() + max_collect_points;
+        std::nth_element(
+            inside_point_candidates.begin(), keep_end, inside_point_candidates.end(),
+            [](const SfcInsidePointCandidate& lhs,
+               const SfcInsidePointCandidate& rhs) {
+              return lhs.depth > rhs.depth;
+            });
+        inside_point_candidates.resize(max_collect_points);
+      }
+      stats.inside_points.reserve(inside_point_candidates.size());
+      for (const auto& candidate : inside_point_candidates) {
+        stats.inside_points.emplace_back(candidate.point);
+      }
+    }
+
     return stats;
-  }
-
-static std::vector<Eigen::Vector3d> buildInflatedVoxelSurfacePoints(
-    const PointVector& raw_points,
-    const Eigen::Vector3f& map_min_bd,
-    const Eigen::Vector3f& map_max_bd,
-    const double voxel_resolution,
-    const double inflate_radius,
-    int& occupied_voxel_num,
-    int& inflate_step) {
-  std::vector<Eigen::Vector3d> surf_points;
-  occupied_voxel_num = 0;
-  inflate_step = 0;
-
-  if (raw_points.empty() || voxel_resolution <= 1.0e-6) {
-    return surf_points;
-  }
-
-  inflate_step = std::max(
-      0, static_cast<int>(std::ceil(inflate_radius / voxel_resolution)));
-
-  if (inflate_step <= 0) {
-    surf_points.reserve(raw_points.size());
-    for (const auto& pt : raw_points) {
-      surf_points.emplace_back(pt.x, pt.y, pt.z);
-    }
-    return surf_points;
-  }
-
-  Eigen::Vector3d origin;
-  Eigen::Vector3i map_size;
-  for (int axis = 0; axis < 3; ++axis) {
-    origin(axis) = std::floor(map_min_bd(axis) / voxel_resolution) *
-                   voxel_resolution;
-    const double corner = std::ceil(map_max_bd(axis) / voxel_resolution) *
-                          voxel_resolution;
-    map_size(axis) =
-        std::max(1, static_cast<int>(
-                        std::ceil((corner - origin(axis)) /
-                                  voxel_resolution)) +
-                        1);
-  }
-
-  voxel_map::VoxelMap voxel_map(map_size, origin, voxel_resolution);
-  for (const auto& pt : raw_points) {
-    voxel_map.setOccupied(Eigen::Vector3d(pt.x, pt.y, pt.z));
-  }
-
-  for (const uint8_t voxel : voxel_map.getVoxels()) {
-    if (voxel == voxel_map::Occupied) {
-      ++occupied_voxel_num;
-    }
-  }
-
-  voxel_map.dilate(inflate_step);
-  voxel_map.getSurf(surf_points);
-
-  if (surf_points.empty() && occupied_voxel_num > 0) {
-    surf_points.reserve(raw_points.size());
-    for (const auto& pt : raw_points) {
-      surf_points.emplace_back(pt.x, pt.y, pt.z);
-    }
-  }
-
-  return surf_points;
 }
 
 FastPlannerManager::FastPlannerManager() {}
@@ -344,33 +319,27 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   min_bd[2] -= 1.0;
   max_bd[2] += 1.0;
 
-  constexpr double kSfcVoxelResolution = 0.2;
-  const int sfc_inflate_step = std::max(
-      0, static_cast<int>(std::ceil(gcopter_config_->dilateRadiusHard /
-                                    kSfcVoxelResolution)));
-  const double sfc_query_margin =
-      (static_cast<double>(sfc_inflate_step) + 1.0) * kSfcVoxelResolution;
-  Eigen::Vector3f search_min_bd = min_bd;
-  Eigen::Vector3f search_max_bd = max_bd;
-  for (int i = 0; i < 3; ++i) {
-    search_min_bd[i] -= static_cast<float>(sfc_query_margin);
-    search_max_bd[i] += static_cast<float>(sfc_query_margin);
-  }
-
   PointVector Searched_Points;
-  lidar_map_interface_->boxSearch(search_min_bd, search_max_bd,
-                                  Searched_Points);
+  lidar_map_interface_->boxSearch(min_bd, max_bd, Searched_Points);
 
-  int occupied_voxel_num = 0;
-  int inflate_step = 0;
-  std::vector<Eigen::Vector3d> surf_points =
-      buildInflatedVoxelSurfacePoints(Searched_Points, search_min_bd,
-                                      search_max_bd, kSfcVoxelResolution,
-                                      gcopter_config_->dilateRadiusHard,
-                                      occupied_voxel_num, inflate_step);
-  gcopter_viz_->visualizeSfcRawPoints(Searched_Points);
-  gcopter_viz_->visualizeSfcInflatedSurface(surf_points);
+  // 降采样 提取路径周围范围内点云 进行规划
+  std::vector<Eigen::Vector3d> surf_points;
+  pcl::VoxelGrid<pcl::PointXYZ> sor;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_origin(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_tmp(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  cloud_origin->points = Searched_Points;  // 酱菜阳前的点
+  sor.setInputCloud(cloud_origin);
+  sor.setLeafSize(0.2, 0.2, 0.2);
+  sor.filter(*cloud_tmp);
 
+  surf_points.reserve(cloud_tmp->points.size());
+  for (const pcl::PointXYZ &point : cloud_tmp->points) {
+    surf_points.emplace_back(point.x, point.y, point.z);
+  }  // 降采样之后的点
+
+  const int downsample_point_num = static_cast<int>(surf_points.size());
   ros::Time point_process_end_stamp = ros::Time::now();
 
   std::vector<Eigen::MatrixX4d> hPolys; // 多面体飞行走廊
@@ -380,6 +349,39 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
                        min_bd.cast<double>(), max_bd.cast<double>(), 7.0,
                        gcopter_config_->corridor_size, hPolys, 1e-6,
                        gcopter_config_->dilateRadiusHard);  // 前端改成硬约束
+
+  constexpr int kMaxSfcRawSupplementPoints = 800;
+  constexpr int kMaxSfcRawRefineIterations = 2;
+  int sfc_refine_round = 0;
+  for (; sfc_refine_round < kMaxSfcRawRefineIterations; ++sfc_refine_round) {
+    auto pre_refine_stats = checkRawPointsInCorridor(
+        Searched_Points, hPolys, gcopter_config_->dilateRadiusHard,
+        kMaxSfcRawSupplementPoints);
+    if (pre_refine_stats.inside_points.empty()) {
+      break;
+    }
+
+    surf_points.insert(surf_points.end(), pre_refine_stats.inside_points.begin(),
+                       pre_refine_stats.inside_points.end());
+    hPolys.clear();
+    sfc_gen::convexCover(gcopter_viz_, path_shorten, surf_points,
+                         min_bd.cast<double>(), max_bd.cast<double>(), 7.0,
+                         gcopter_config_->corridor_size, hPolys, 1e-6,
+                         gcopter_config_->dilateRadiusHard);
+    ROS_WARN_STREAM_THROTTLE(
+        1.0,
+        "[SFC refine] round=" << (sfc_refine_round + 1)
+            << " raw points inside corridor before refine="
+            << pre_refine_stats.inside_point_num
+            << " collected=" << pre_refine_stats.inside_points.size()
+            << " downsample_points=" << downsample_point_num
+            << " refined_points=" << surf_points.size()
+            << " deepest=" << pre_refine_stats.deepest_inside
+            << " worst_poly=" << pre_refine_stats.worst_poly_idx
+            << " worst_poly's inside_raw_points="
+            << getWorstPolyInsideCount(pre_refine_stats));
+  }
+
   Eigen::Matrix<double, 3, 4> iniState;
   Eigen::Matrix<double, 3, 4> finState;
   double time_now = (ros::Time::now() - local_data_.start_time_).toSec();
@@ -462,17 +464,35 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   const auto sfc_raw_stats = checkRawPointsInCorridor(Searched_Points, hPolys, gcopter_config_->dilateRadiusHard);
   if(sfc_raw_stats.deepest_inside > 1e-6)
   {
+    constexpr int kMaxAllowedSfcRawInsidePoints = 200;
+    constexpr double kMaxAllowedSfcRawInsideDepth = 0.14;
+    if (sfc_raw_stats.inside_point_num > kMaxAllowedSfcRawInsidePoints ||
+        sfc_raw_stats.deepest_inside > kMaxAllowedSfcRawInsideDepth) {
+      ROS_ERROR_STREAM(
+          "[SFC raw check] reject unsafe corridor, raw_points="
+              << sfc_raw_stats.raw_point_num
+              << " downsample_points=" << downsample_point_num
+              << " sfc_points=" << surf_points.size()
+              << " hpolys=" << hPolys.size()
+              << " inside=" << sfc_raw_stats.inside_point_num
+              << " deepest=" << sfc_raw_stats.deepest_inside
+              << " worst_poly=" << sfc_raw_stats.worst_poly_idx
+              << " worst_poly's inside_raw_points="
+              << getWorstPolyInsideCount(sfc_raw_stats));
+      return false;
+    }
+
     ROS_WARN_STREAM_THROTTLE(
     1.0,
-    "[SFC raw check] raw_points=" << sfc_raw_stats.raw_point_num
-    << " occupied_voxels=" << occupied_voxel_num
-    << " inflated_surf_points=" << surf_points.size()
-    << " inflate_step=" << inflate_step
+    "[SFC raw check CORE_INFO] raw_points=" << sfc_raw_stats.raw_point_num
+    << " downsample_points=" << downsample_point_num
+    << " sfc_points=" << surf_points.size()
     << " hpolys=" << hPolys.size()
     << " inside=" << sfc_raw_stats.inside_point_num
     << " deepest=" << sfc_raw_stats.deepest_inside
     << " worst_poly=" << sfc_raw_stats.worst_poly_idx
-    << " worst_poly's inside_raw_points=" << sfc_raw_stats.inside_per_poly[sfc_raw_stats.worst_poly_idx]
+    << " worst_poly's inside_raw_points="
+    << getWorstPolyInsideCount(sfc_raw_stats)
     );
   }
 
@@ -729,30 +749,23 @@ bool FastPlannerManager::flyToSafeRegion(bool is_static) {
     min_bd[i] = topo_graph_->odom_node_->center_[i] - 2.0;
     max_bd[i] = topo_graph_->odom_node_->center_[i] + 2.0;
   }
-  constexpr double kSfcVoxelResolution = 0.2;
-  const int sfc_inflate_step = std::max(
-      0, static_cast<int>(std::ceil(gcopter_config_->dilateRadiusHard /
-                                    kSfcVoxelResolution)));
-  const double sfc_query_margin =
-      (static_cast<double>(sfc_inflate_step) + 1.0) * kSfcVoxelResolution;
-  Eigen::Vector3f search_min_bd = min_bd;
-  Eigen::Vector3f search_max_bd = max_bd;
-  for (int i = 0; i < 3; ++i) {
-    search_min_bd[i] -= static_cast<float>(sfc_query_margin);
-    search_max_bd[i] += static_cast<float>(sfc_query_margin);
-  }
   PointVector Searched_Points;
-  lidar_map_interface_->boxSearch(search_min_bd, search_max_bd,
-                                  Searched_Points);
-  int occupied_voxel_num = 0;
-  int inflate_step = 0;
-  std::vector<Eigen::Vector3d> surf_points =
-      buildInflatedVoxelSurfacePoints(Searched_Points, search_min_bd,
-                                      search_max_bd, kSfcVoxelResolution,
-                                      gcopter_config_->dilateRadiusHard,
-                                      occupied_voxel_num, inflate_step);
-  gcopter_viz_->visualizeSfcRawPoints(Searched_Points);
-  gcopter_viz_->visualizeSfcInflatedSurface(surf_points);
+  lidar_map_interface_->boxSearch(min_bd, max_bd, Searched_Points);
+  std::vector<Eigen::Vector3d> surf_points;
+  pcl::VoxelGrid<pcl::PointXYZ> sor;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_origin(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_tmp(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  cloud_origin->points = Searched_Points;  // 酱菜阳前的点
+  sor.setInputCloud(cloud_origin);
+  sor.setLeafSize(0.2, 0.2, 0.2);
+  sor.filter(*cloud_tmp);
+
+  surf_points.reserve(cloud_tmp->points.size());
+  for (const pcl::PointXYZ &point : cloud_tmp->points) {
+    surf_points.emplace_back(point.x, point.y, point.z);
+  }  // 降采样之后的点
   Eigen::Matrix<double, 6, 4> bd = Eigen::Matrix<double, 6, 4>::Zero();
   bd(0, 0) = 1.0;
   bd(1, 0) = -1.0;

@@ -121,8 +121,6 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
                         const Eigen::Vector3d &lowCorner, const Eigen::Vector3d &highCorner, const double &progress, const double &range, std::vector<Eigen::MatrixX4d> &hpolys,
                         const double eps = 1.0e-6, const double dilate_radius_ = 0.1) {
   (void)vizer;
-  (void)eps;
-  (void)dilate_radius_;
   hpolys.clear();
   const int n = path.size();
   // 矩阵 6 个面
@@ -139,6 +137,12 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
   std::vector<Eigen::Vector3d> valid_pc;
   std::vector<Eigen::Vector3d> bs;
   valid_pc.reserve(points.size());
+
+  auto shrink_hp = [&](Eigen::MatrixX4d &poly) {
+    poly.col(3) =
+        poly.col(3).array() +
+        dilate_radius_ * poly.leftCols(3).rowwise().norm().array();
+  };
 
   for (int i = 1; i < n;) {
     a = b;
@@ -175,11 +179,21 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
       ROS_ERROR_STREAM_THROTTLE(1.0, "[SFC gen] firi failed, skip segment");
       continue;
     }
+    shrink_hp(hp);
+
+    const Eigen::Vector4d bh(b(0), b(1), b(2), 1.0);
+    if (((hp * bh).array() > -eps).cast<int>().sum() > 0) {
+      ROS_WARN_STREAM_THROTTLE(
+          1.0,
+          "[SFC gen] b outside shrunken poly, skip segment.");
+      continue;
+    }
 
     if (hpolys.size() != 0) {
       const Eigen::Vector4d ah(a(0), a(1), a(2), 1.0);
       if (3 <= ((hp * ah).array() > -eps).cast<int>().sum() + ((hpolys.back() * ah).array() > -eps).cast<int>().sum()) {
         if (firi::firi(bd, pc, a, a, gap, 1)) {
+          shrink_hp(gap);
           hpolys.emplace_back(gap);
         } else {
           ROS_ERROR_STREAM_THROTTLE(1.0, "[SFC gen] gap firi failed");
