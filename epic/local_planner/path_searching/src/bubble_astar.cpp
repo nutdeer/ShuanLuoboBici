@@ -33,6 +33,14 @@ void BubbleAstar::init(ros::NodeHandle &nh,
   nh.param("bubble_astar/lambda_heu", lambda_heu_, 1.0);
   nh.param("bubble_astar/allocate_num", allocate_num_, -1);
   nh.param("bubble_astar/safe_distance", safe_distance_, -1.0);
+  double hard_safe_distance = safe_distance_;
+  nh.param("DilateRadiusHard", hard_safe_distance, safe_distance_);
+  if (hard_safe_distance > safe_distance_) {
+    ROS_WARN_STREAM("[BubbleAstar] bubble_astar/safe_distance="
+                    << safe_distance_ << " is smaller than DilateRadiusHard="
+                    << hard_safe_distance << ", use hard radius for search.");
+    safe_distance_ = hard_safe_distance;
+  }
   nh.param("bubble_astar/debug", debug_, false);
   vizer.init(nh);
   safeArea_.reserve(100000);

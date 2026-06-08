@@ -3,6 +3,9 @@
 
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <std_msgs/Float64.h>
@@ -38,6 +41,8 @@ private:
   ros::Publisher trajOptimize_timecostPub;
   ros::Publisher pointCloudProcess_timecostPub;
   ros::Publisher totoalOptimize_timecostPub;
+  ros::Publisher sfcRawPointsPub;
+  ros::Publisher sfcInflatedSurfacePub;
 
 public:
   ros::Publisher speedPub;
@@ -67,6 +72,8 @@ public:
     pointCloudProcess_timecostPub = nh.advertise<std_msgs::Float64>("/visualizer/pointCloudProcess_timecost", 1000);
     totoalOptimize_timecostPub = nh.advertise<std_msgs::Float64>("/visualizer/totoalOptimize_timecost", 1000);
     cloud_inputPub = nh.advertise<sensor_msgs::PointCloud2>("/visualizer/cloud_input", 10);
+    sfcRawPointsPub = nh.advertise<sensor_msgs::PointCloud2>("/visualizer/sfc_raw_points", 2);
+    sfcInflatedSurfacePub = nh.advertise<sensor_msgs::PointCloud2>("/visualizer/sfc_inflated_surface", 2);
   }
 
   inline Eigen::Vector3d jetColorMap(double value) {
@@ -95,6 +102,46 @@ public:
     }
 
     return Eigen::Vector3d(r, g, b);
+  }
+
+  template <typename PointVectorLike>
+  inline void visualizeSfcRawPoints(const PointVectorLike &points) {
+    if (sfcRawPointsPub.getNumSubscribers() == 0) {
+      return;
+    }
+
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+    cloud.points.reserve(points.size());
+    for (const auto &pt : points) {
+      cloud.points.emplace_back(pt.x, pt.y, pt.z);
+    }
+    publishCloud(cloud, sfcRawPointsPub);
+  }
+
+  inline void visualizeSfcInflatedSurface(const std::vector<Eigen::Vector3d> &points) {
+    if (sfcInflatedSurfacePub.getNumSubscribers() == 0) {
+      return;
+    }
+
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+    cloud.points.reserve(points.size());
+    for (const auto &pt : points) {
+      cloud.points.emplace_back(pt.x(), pt.y(), pt.z());
+    }
+    publishCloud(cloud, sfcInflatedSurfacePub);
+  }
+
+  inline void publishCloud(pcl::PointCloud<pcl::PointXYZ> &cloud,
+                           const ros::Publisher &publisher) {
+    cloud.width = static_cast<uint32_t>(cloud.points.size());
+    cloud.height = 1;
+    cloud.is_dense = true;
+
+    sensor_msgs::PointCloud2 msg;
+    pcl::toROSMsg(cloud, msg);
+    msg.header.frame_id = "world";
+    msg.header.stamp = ros::Time::now();
+    publisher.publish(msg);
   }
 
   // Visualize the trajectory and its front-end path

@@ -13,6 +13,14 @@ void ParallelBubbleAstar::init(ros::NodeHandle &nh, const LIOInterface::Ptr &lid
   nh.param("bubble_astar/lambda_heu", lambda_heu_, 1.0);
   nh.param("bubble_astar/allocate_num", allocate_num_, -1);
   nh.param("bubble_astar/safe_distance", safe_distance_, -1.0);
+  double hard_safe_distance = safe_distance_;
+  nh.param("DilateRadiusHard", hard_safe_distance, safe_distance_);
+  if (hard_safe_distance > safe_distance_) {
+    ROS_WARN_STREAM("[ParallelBubbleAstar] bubble_astar/safe_distance="
+                    << safe_distance_ << " is smaller than DilateRadiusHard="
+                    << hard_safe_distance << ", use hard radius for search.");
+    safe_distance_ = hard_safe_distance;
+  } // 只是限制 safe_distance_ 大小
   nh.param("bubble_astar/debug", debug_, false);
   tie_breaker_ = 1.0 + 1.0 / 1000;
   this->lidar_map_interface_ = lidar_map;
