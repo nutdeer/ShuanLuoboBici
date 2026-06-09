@@ -503,7 +503,32 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   Eigen::VectorXd magnitudeBounds(5);
   Eigen::VectorXd penaltyWeights(5);
   Eigen::VectorXd physicalParams(6);
-  magnitudeBounds(0) = gcopter_config_->maxVelMag;
+
+  // 上行检测: 路径累计 z 上升 / 累计总长度. 比例大说明主体是上行运动,
+  // 而 lidar 仅向上看 +5°, 上方点云不足, 需要压低速度让感知补点.
+  double upward_dist = 0.0;
+  double total_dist = 0.0;
+  for (size_t k = 1; k < path_shorten.size(); ++k) {
+    const Eigen::Vector3d seg = path_shorten[k] - path_shorten[k - 1];
+    total_dist += seg.norm();
+    if (seg.z() > 0.0) {
+      upward_dist += seg.z();
+    }
+  }
+  const double upward_ratio =
+      (total_dist > 1.0e-3) ? (upward_dist / total_dist) : 0.0;
+  constexpr double kUpwardRatioTrigger = 0.4;
+  constexpr double kUpwardSpeedCap = 0.4;
+  double vel_cap = gcopter_config_->maxVelMag;
+  if (upward_ratio > kUpwardRatioTrigger) {
+    vel_cap = std::min(vel_cap, kUpwardSpeedCap);
+    ROS_WARN_STREAM_THROTTLE(
+        1.0,
+        "[planExploreTraj] upward path ratio=" << upward_ratio
+            << " (z_gain=" << upward_dist << "m / total=" << total_dist
+            << "m), cap vel=" << vel_cap);
+  }
+  magnitudeBounds(0) = vel_cap;
   magnitudeBounds(1) = gcopter_config_->maxBdrMag;
   magnitudeBounds(2) = gcopter_config_->maxTiltAngle;
   magnitudeBounds(3) = gcopter_config_->minThrust;
@@ -534,6 +559,15 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   double time_lb;
   calculateTimelb(path_shorten, local_data_.curr_yaw_, local_data_.end_yaw_,
                   time_lb);
+  {
+    double total_len = 0.0;
+    for (size_t k = 1; k < path_shorten.size(); ++k)
+      total_len += (path_shorten[k] - path_shorten[k - 1]).norm();
+    double vel_limit = magnitudeBounds(0);
+    if (vel_limit > 1.0e-3) {
+      time_lb = std::max(time_lb, total_len / vel_limit);
+    }
+  }
   cout << "lower_bd = " << time_lb << endl;
   if (std::isinf(gcopter.optimize(local_data_.minco_traj_,
                                   gcopter_config_->relCostTol, time_lb))) {
