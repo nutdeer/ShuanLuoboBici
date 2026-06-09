@@ -11,5 +11,6 @@
   </node>
 
   <include file="$(find epic_planner)/launch/simulation_$(arg map_name).launch"/>
+  <!-- 把这行删掉就是实飞 -->
 
 </launch>

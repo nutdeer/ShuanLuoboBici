@@ -81,7 +81,7 @@ Visualization Manager:
           Marker Topic: /planning/position_cmd_vis
           Name: position_cmd_all
           Namespaces:
-            "": true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/Marker
@@ -101,7 +101,7 @@ Visualization Manager:
           Marker Topic: /planning/travel_traj
           Name: history_traj
           Namespaces:
-            traj_exp: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/MarkerArray
@@ -162,7 +162,7 @@ Visualization Manager:
           Marker Topic: /visualizer/trajectory
           Name: Marker
           Namespaces:
-            trajectory: true
+            {}
           Queue Size: 105
           Value: true
         - Class: rviz/Marker
@@ -170,7 +170,7 @@ Visualization Manager:
           Marker Topic: /visualizer/edge
           Name: Marker
           Namespaces:
-            edge: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/Marker
@@ -178,7 +178,7 @@ Visualization Manager:
           Marker Topic: /visualizer/mesh
           Name: Marker
           Namespaces:
-            mesh: true
+            {}
           Queue Size: 100
           Value: true
       Enabled: true
@@ -368,18 +368,13 @@ Visualization Manager:
       Enabled: true
       Name: explore_env
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /viz_graph_topic
       Name: topo_graph
       Namespaces:
-        boundary: true
-        box id: true
-        odom_edge: true
-        skeleton_edge: true
-        topo_node: true
-        viewpoint_edge: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -392,7 +387,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -407,12 +402,12 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 26.06626319885254
-        Min Value: -1.4827333688735962
+        Max Value: 88.58233642578125
+        Min Value: -5.302576065063477
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -420,7 +415,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -435,7 +430,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Angle Tolerance: 0.10000000149011612
       Class: rviz/Odometry
       Covariance:
@@ -562,9 +557,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 5
-      Pitch: 0.658068060874939
+      Pitch: 0.35306835174560547
       Target Frame: sensor
-      Yaw: 3.0002567768096924
+      Yaw: 3.045257329940796
     Saved:
       - Class: rviz/ThirdPersonFollower
         Distance: 40.93450164794922
@@ -614,5 +609,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1920
-  X: 2560
+  X: 0
   Y: 0
