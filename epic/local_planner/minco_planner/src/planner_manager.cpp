@@ -289,7 +289,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
       new pcl::PointCloud<pcl::PointXYZ>);
   cloud_origin->points = Searched_Points;  // 酱菜阳前的点
   sor.setInputCloud(cloud_origin);
-  sor.setLeafSize(0.2, 0.2, 0.2);
+  sor.setLeafSize(0.1, 0.1, 0.1);
   sor.filter(*cloud_tmp);
 
   surf_points.reserve(cloud_tmp->points.size());
