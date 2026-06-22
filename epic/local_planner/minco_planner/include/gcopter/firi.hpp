@@ -278,19 +278,21 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 	const Eigen::Vector4d bh(b(0), b(1), b(2), 1.0);
 
 	// boundary约束 bd * ah <=0
+	// a 和 b 是不是都在边界盒内
 	if ((bd * ah).maxCoeff() > 0.0 || (bd * bh).maxCoeff() > 0.0) {
 		return false; // a and b are out of boundary
 	}
 
 	const int M = bd.rows();
 	const int N = pc.cols();
-
+	// 初始小球球 初始球球 在 a，b 中点
+	// Identity() 就是单位阵不旋转
 	Eigen::Matrix3d R = Eigen::Matrix3d::Identity(); // 椭球三个旋转
 	Eigen::Vector3d p = 0.5 * (a + b); // 椭球中心
 	Eigen::Vector3d r = Eigen::Vector3d::Ones(); // 椭球三个长轴的半径
 	Eigen::MatrixX4d forwardH(M + N, 4);
 	int nH = 0;
-
+	// 开迭
 	for (int loop = 0; loop < iterations; ++loop) {
 		const Eigen::Matrix3d forward = r.cwiseInverse().asDiagonal() * R.transpose(); 
 		const Eigen::Matrix3d backward = R * r.asDiagonal();                           
@@ -300,6 +302,7 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 
 		const Eigen::Matrix3Xd forwardPC = forward * (pc.colwise() - p); 
 
+		
 		const Eigen::Vector3d fwd_a = forward * (a - p); 
 		const Eigen::Vector3d fwd_b = forward * (b - p);
 

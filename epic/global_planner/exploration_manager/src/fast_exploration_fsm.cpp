@@ -58,10 +58,12 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     {
       quadrotor_msgs::TakeoffLand takeoff_msg;
       takeoff_msg.takeoff_land_cmd = takeoff_msg.TAKEOFF;
+      takeoff_msg.takeoff_hight = 0.6;
       land_pub_.publish(takeoff_msg);
     }
     ROS_WARN("TAKE_OFF!!");
     transitState(WAIT_TRIGGER, "FSM");
+    break;
   }
 
   case FINISH:

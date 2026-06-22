@@ -109,24 +109,24 @@ void FastExplorationFSM::triggerCallback(const geometry_msgs::PoseStamped::Const
 
   if (msg->pose.position.z > 0)   //向上拖动
   {  
-    if (state_ != WAIT_TRIGGER)  // 一拿到 odom 就进 
+    if (state_ != WAIT_TRIGGER)
+      return;
+    if (!fd_->have_odom_)
       return;
 
-    static int trigger_count = 0;
-    if (trigger_count == 0){ // 第一次 起飞
+    // 检查无人机是否已起飞（根据高度判断）
+    if (fd_->odom_pos_.z() < 0.5) {   // 在地面，发起飞指令
       transitState(TAKE_OFF, "triggerCallback");
       cout << "Triggered! START TAKE OFF !" << endl;
-    }
-    else if (trigger_count >= 1){ // 第二次 开始探索
+    } else {                           // 已起飞，开始探索
       fd_->trigger_ = true;
       cout << "Triggered! START EXPLORATION !" << endl;
       total_time_ = ros::Time::now().toSec();
       transitState(PLAN_TRAJ, "triggerCallback");
     }
-    trigger_count++;    
     return;
   }
-  else if (msg->pose.position.z < 0)   //向下拖动 降落逻辑，像有点问题
+  else if (msg->pose.position.z < 0)   //向下拖动 降落逻辑
   {
     transitState(LAND, "triggerCallback");
     cout << "Triggered! START LAND !" << endl;
@@ -175,6 +175,9 @@ void FastExplorationFSM::CloudOdomCallback(const sensor_msgs::PointCloud2ConstPt
 // 状态转换与日志打印
 void FastExplorationFSM::transitState(EXPL_STATE new_state, string pos_call, bool red) {
   int pre_s = int(state_);
+  if (state_ == LAND && new_state != LAND) {
+    return;
+  }
   state_ = new_state;
   if (!red) {
     cout << "\033[32m[" + pos_call + "]\033[0m: from " + fd_->state_str_[pre_s] + " to " + fd_->state_str_[int(new_state)] << endl;

@@ -1,0 +1,9 @@
+<launch>
+    <node pkg="px4ctrl" type="rviz_drag_takeoff.py" name="rviz_drag_takeoff" output="screen">
+        <!-- RViz "3D Nav Goal" 工具发布的话题（plan_manage/config/traj.rviz 配的是 /goal_rviz） -->
+        <param name="goal_topic" value="/goal_rviz" />
+        <param name="takeoff_land_topic" value="/px4ctrl/takeoff_land" />
+        <param name="takeoff_height" value="0.5" />
+        <param name="repeat" value="20" />
+    </node>
+</launch>

@@ -45,6 +45,8 @@ target_link_libraries(px4ctrl_node
   ${catkin_LIBRARIES}
 )
 
-catkin_install_python(PROGRAMS thrust_calibrate_scrips/thrust_calibrate.py
+catkin_install_python(PROGRAMS
+  thrust_calibrate_scrips/thrust_calibrate.py
+  scripts/rviz_drag_takeoff.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

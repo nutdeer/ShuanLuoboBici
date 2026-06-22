@@ -72,17 +72,17 @@ static SfcRawPointStats checkRawPointsInCorridor(
           - expanded_radius * hp_check.leftCols(3).rowwise().norm().array();
       checkPolys.push_back(hp_check);
     }
-
+    // 遍历每个输入点
     for (const auto& pt : raw_points) {  // 原始点遍历
       Eigen::Vector4d ph(pt.x, pt.y, pt.z, 1.0);
 
-      for (int i = 0; i < static_cast<int>(hPolys.size()); ++i) {
+      for (int i = 0; i < static_cast<int>(hPolys.size()); ++i) {  // 遍历每个多面体
         const auto& hp = checkPolys[i];
 
         double max_signed_dist = -std::numeric_limits<double>::infinity();
         bool has_valid_plane = false;
 
-        for (int r = 0; r < hp.rows(); ++r) {
+        for (int r = 0; r < hp.rows(); ++r) {  // 遍历每个面
           const double n_norm = hp.row(r).head<3>().norm();
           if (n_norm < 1.0e-9) {
             continue;
@@ -349,7 +349,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
                        min_bd.cast<double>(), max_bd.cast<double>(), 7.0,
                        gcopter_config_->corridor_size, hPolys, 1e-6,
                        gcopter_config_->dilateRadiusHard);  // 前端改成硬约束
-
+  // 注入点上限
   constexpr int kMaxSfcRawSupplementPoints = 800;
   constexpr int kMaxSfcRawRefineIterations = 2;
   int sfc_refine_round = 0;
@@ -362,7 +362,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
     }
 
     surf_points.insert(surf_points.end(), pre_refine_stats.inside_points.begin(),
-                       pre_refine_stats.inside_points.end());
+                       pre_refine_stats.inside_points.end());  // 把增加的点注入
     hPolys.clear();
     sfc_gen::convexCover(gcopter_viz_, path_shorten, surf_points,
                          min_bd.cast<double>(), max_bd.cast<double>(), 7.0,
