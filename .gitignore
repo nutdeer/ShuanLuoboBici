@@ -4,3 +4,7 @@ FAST_LIO/PCD
 **/.vscode
 Utils/pointcloudmap_load/data
 epic/global_planner/utils/lkh_tsp_solver/resource
+epic/local_planner/minco_planner/config/traj.rviz
+epic/global_planner/utils/lkh_tsp_solver/resource/single.txt
+epic/local_planner/minco_planner/config/traj.rviz
+epic/global_planner/utils/lkh_tsp_solver/resource/single.tsp

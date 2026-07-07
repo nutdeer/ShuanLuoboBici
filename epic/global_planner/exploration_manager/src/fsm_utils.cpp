@@ -89,7 +89,7 @@ int FastExplorationFSM::callExplorationPlanner() {
     }
   }
   expl_manager_->ed_->path_next_goal_.swap(path_next_goal_tmp);
-  // 规划具体轨迹
+  // 规划具体轨迹  这里是唯一会被调用的地方
   if (planner_manager_->planExploreTraj(expl_manager_->ed_->path_next_goal_, fd_->static_state_))
   {
     traj_utils::PolyTraj poly_traj_msg;

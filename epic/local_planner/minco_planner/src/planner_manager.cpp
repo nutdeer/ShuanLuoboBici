@@ -16,6 +16,7 @@
 #include <thread>
 #include <visualization_msgs/Marker.h>
 #include <limits>
+#include "gcopter/voxel_downsample.hpp"
 
 namespace fast_planner {
 // 该结构体用于统计原始点云在安全飞行走廊（SFC）中的分布情况
@@ -280,22 +281,29 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   PointVector Searched_Points;
   lidar_map_interface_->boxSearch(min_bd, max_bd, Searched_Points);
 
-  // 降采样 提取路径周围范围内点云 进行规划
-  std::vector<Eigen::Vector3d> surf_points;
-  pcl::VoxelGrid<pcl::PointXYZ> sor;
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_origin(
-      new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_tmp(
-      new pcl::PointCloud<pcl::PointXYZ>);
-  cloud_origin->points = Searched_Points;  // 酱菜阳前的点
-  sor.setInputCloud(cloud_origin);
-  sor.setLeafSize(0.1, 0.1, 0.1);
-  sor.filter(*cloud_tmp);
+  // hash 下采样
+  // voxel_raw[i] 与 surf_points[i] 索引对齐的原始点集
+  const double sfc_leaf = 0.2;
+  const double sfc_voxel_radius = sfc_leaf * std::sqrt(3.0) * 0.5;
+  auto ds_result = voxelDownsample(Searched_Points, sfc_leaf);
+  const std::vector<Eigen::Vector3d> &surf_points = ds_result.surf_points;
 
-  surf_points.reserve(cloud_tmp->points.size());
-  for (const pcl::PointXYZ &point : cloud_tmp->points) {
-    surf_points.emplace_back(point.x, point.y, point.z);
-  }  // 降采样之后的点
+  // // 降采样 提取路径周围范围内点云 进行规划
+  // std::vector<Eigen::Vector3d> surf_points;
+  // pcl::VoxelGrid<pcl::PointXYZ> sor;
+  // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_origin(
+  //     new pcl::PointCloud<pcl::PointXYZ>);
+  // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_tmp(
+  //     new pcl::PointCloud<pcl::PointXYZ>);
+  // cloud_origin->points = Searched_Points;  // 酱菜阳前的点
+  // sor.setInputCloud(cloud_origin);
+  // sor.setLeafSize(0.1, 0.1, 0.1);
+  // sor.filter(*cloud_tmp);
+
+  // surf_points.reserve(cloud_tmp->points.size());
+  // for (const pcl::PointXYZ &point : cloud_tmp->points) {
+  //   surf_points.emplace_back(point.x, point.y, point.z);
+  // }  // 降采样之后的点
 
   ros::Time point_process_end_stamp = ros::Time::now();
 
@@ -305,7 +313,12 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   sfc_gen::convexCover(gcopter_viz_, path_shorten, surf_points,
                        min_bd.cast<double>(), max_bd.cast<double>(), 7.0,
                        gcopter_config_->corridor_size, hPolys, 1e-6,
-                       gcopter_config_->dilateRadiusHard);  // 前端改成硬约束
+                       gcopter_config_->dilateRadiusHard, // 前端改成硬约束
+
+                       &ds_result.voxel_raw,
+                       sfc_voxel_radius,
+                       gcopter_config_->dilateRadiusHard
+                      );  
   Eigen::Matrix<double, 3, 4> iniState;
   Eigen::Matrix<double, 3, 4> finState;
   double time_now = (ros::Time::now() - local_data_.start_time_).toSec();
@@ -384,20 +397,23 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
     
     is_polys_not_overlap = false;
   }
-  // 飞行走廊内障碍点检测
-  const auto sfc_raw_stats = checkRawPointsInCorridor(Searched_Points, hPolys, gcopter_config_->dilateRadiusHard);
-  if(sfc_raw_stats.deepest_inside > 1e-6)
-  {
-    ROS_WARN_STREAM_THROTTLE(
-    1.0,
-    "[SFC raw check] raw_points=" << sfc_raw_stats.raw_point_num
-    << " downsample_points=" << surf_points.size()
-    << " hpolys=" << hPolys.size()
-    << " inside=" << sfc_raw_stats.inside_point_num
-    << " deepest=" << sfc_raw_stats.deepest_inside
-    << " worst_poly=" << sfc_raw_stats.worst_poly_idx
-    << " worst_poly's inside_raw_points=" << sfc_raw_stats.inside_per_poly[sfc_raw_stats.worst_poly_idx]
-    );
+  // 飞行走廊内障碍点检测 默认关闭
+  // 在 scene YAML 里加 `EnableSfcRawCheck: true` 即启用
+  if (gcopter_config_->enableSfcRawCheck) {
+    const auto sfc_raw_stats = checkRawPointsInCorridor(Searched_Points, hPolys, gcopter_config_->dilateRadiusHard);
+    if(sfc_raw_stats.deepest_inside > 1e-6)
+    {
+      ROS_WARN_STREAM_THROTTLE(
+      1.0,
+      "[SFC raw check] raw_points=" << sfc_raw_stats.raw_point_num
+      << " downsample_points=" << surf_points.size()
+      << " hpolys=" << hPolys.size()
+      << " inside=" << sfc_raw_stats.inside_point_num
+      << " deepest=" << sfc_raw_stats.deepest_inside
+      << " worst_poly=" << sfc_raw_stats.worst_poly_idx
+      << " worst_poly's inside_raw_points=" << sfc_raw_stats.inside_per_poly[sfc_raw_stats.worst_poly_idx]
+      );
+    }
   }
 
   gcopter_viz_->visualizePolytope(hPolys,is_polys_not_overlap);

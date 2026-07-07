@@ -273,7 +273,11 @@ inline bool maxVolInsEllipsoid(const Eigen::MatrixX4d& hPoly,
 inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
                  const Eigen::Vector3d& a, const Eigen::Vector3d& b,
                  Eigen::MatrixX4d& hPoly, const int iterations = 4,
-                 const double epsilon = 1.0e-6) {
+                 const double epsilon = 1.0e-6,
+				// 增加内嵌的障碍点的移除
+				const std::vector<std::vector<Eigen::Vector3d>>* pc_raw = nullptr,
+				double drone_r = 0.0
+				) {
 	const Eigen::Vector4d ah(a(0), a(1), a(2), 1.0);
 	const Eigen::Vector4d bh(b(0), b(1), b(2), 1.0);
 

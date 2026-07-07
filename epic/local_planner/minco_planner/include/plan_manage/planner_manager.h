@@ -52,6 +52,7 @@ struct GcopterConfig {
   double yaw_max_vel;
   double yaw_rho_vis;
   double yaw_time_fwd;
+  bool enableSfcRawCheck;  // SFC 生成后遍历所有 raw 点检查侵入
 
   void init(const ros::NodeHandle &nh_priv) {
     nh_priv.getParam("DilateRadiusSoft", dilateRadiusSoft);
@@ -77,6 +78,9 @@ struct GcopterConfig {
     nh_priv.getParam("yaw_rho_vis", yaw_rho_vis);
     nh_priv.getParam("yaw_max_vel", yaw_max_vel);
     nh_priv.getParam("yaw_time_fwd", yaw_time_fwd);
+    // 用raw point 检查： 默认 false，yaml 显式设 true 才启用
+    // EnableSfcRawCheck: true
+    nh_priv.param("EnableSfcRawCheck", enableSfcRawCheck, false);
   }
 };
 

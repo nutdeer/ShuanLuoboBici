@@ -1,8 +1,8 @@
 #topic param:
-# odometry_topic: /Odometry_high_freq
-# cloud_topic: /cloud_registered
-odometry_topic: /quad_0/lidar_slam/odom
-cloud_topic: /quad0_pcl_render_node/cloud
+odometry_topic: /Odometry_high_freq
+cloud_topic: /cloud_registered
+#odometry_topic: /quad_0/lidar_slam/odom
+#cloud_topic: /quad0_pcl_render_node/cloud
 global_planning/w_vdir: 1.2         #没用
 global_planning/w_yawdir: 0.0       #没用
 global_planning/w_firstnode: 0.2    #没用
@@ -61,7 +61,7 @@ dead_area_num: 0
 # trajectory param
 max_traj_len: 10.0
 DilateRadiusSoft: 0.6 # minco threshold 软约束
-DilateRadiusHard: 0.3 # collision check threshold 硬约束
+DilateRadiusHard: 0.31 # collision check threshold 硬约束
 MaxCorridorSize: 3.5
 MaxVelMag: 1.0    #最大速度
 maxBdrMag: 10000.0
