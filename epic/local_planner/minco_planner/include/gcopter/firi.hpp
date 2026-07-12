@@ -105,7 +105,7 @@ inline double costMVIE(void* data, const Eigen::VectorXd& x,
 	L(2, 2) = rtd(2) * rtd(2) + DBL_EPSILON;
 
 	const Eigen::MatrixX3d AL = A * L;
-	const Eigen::VectorXd normAL = AL.rowwise().norm();
+	const Eigen::VectorXd normAL = AL.rowwise().norm();  // rowwise() 是逐行
 	const Eigen::Matrix3Xd adjNormAL =
 	    (AL.array().colwise() / normAL.array()).transpose();
 	const Eigen::VectorXd consViola = (normAL + A * p).array() - 1.0;
@@ -276,7 +276,7 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
                  const double epsilon = 1.0e-6,
 				// 增加内嵌的障碍点的移除
 				const std::vector<std::vector<Eigen::Vector3d>>* pc_raw = nullptr,
-				double drone_r = 0.0
+				double drone_r = 0.0  // 需显示调用
 				) {
 	const Eigen::Vector4d ah(a(0), a(1), a(2), 1.0);
 	const Eigen::Vector4d bh(b(0), b(1), b(2), 1.0);
@@ -286,7 +286,7 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 		return false; // a and b are out of boundary
 	}
 
-	const int M = bd.rows();
+	const int M = bd.rows();  // M is aabb relate
 	const int N = pc.cols();
 
 	Eigen::Matrix3d R = Eigen::Matrix3d::Identity(); // 椭球三个旋转
@@ -298,9 +298,9 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 	for (int loop = 0; loop < iterations; ++loop) {
 		const Eigen::Matrix3d forward = r.cwiseInverse().asDiagonal() * R.transpose(); 
 		const Eigen::Matrix3d backward = R * r.asDiagonal();                           
-		const Eigen::MatrixX3d forwardB = bd.leftCols<3>() * backward; 
-
+		const Eigen::MatrixX3d forwardB = bd.leftCols<3>() * backward;  // 这两个也是 aabb relate
 		const Eigen::VectorXd forwardD = bd.rightCols<1>() + bd.leftCols<3>() * p;
+		const Eigen::VectorXd bd_margin = drone_r * bd.leftCols<3>().rowwise().norm();  // 只在选面时使用
 
 		const Eigen::Matrix3Xd forwardPC = forward * (pc.colwise() - p); 
 
@@ -309,34 +309,190 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 
 		const Eigen::VectorXd distDs = forwardD.cwiseAbs().cwiseQuotient(forwardB.rowwise().norm());
 		Eigen::MatrixX4d tangents(N, 4); 
-		Eigen::VectorXd distRs(N);       
-		// 切线生成核心
-		for (int i = 0; i < N; i++) { 
-			distRs(i) = forwardPC.col(i).norm();                                    
-			tangents(i, 3) = -distRs(i);                                            
-			tangents.block<1, 3>(i, 0) = forwardPC.col(i).transpose() / distRs(i);  
-			if (tangents.block<1, 3>(i, 0).dot(fwd_a) + tangents(i, 3) > epsilon) { 
 
-				const Eigen::Vector3d delta = forwardPC.col(i) - fwd_a;
-				tangents.block<1, 3>(i, 0) = fwd_a - (delta.dot(fwd_a) / delta.squaredNorm()) * delta; 
-				distRs(i) = tangents.block<1, 3>(i, 0).norm();                                         
-				tangents(i, 3) = -distRs(i);
-				tangents.block<1, 3>(i, 0) /= distRs(i);
+		Eigen::VectorXd distRs(N);
+		
+		if( loop == iterations -1 ) 
+		{
+			// 0 is fast ; 1 is slow  
+			Eigen::Matrix<uint8_t, -1, 1> slowFlags = Eigen::Matrix<uint8_t, -1, 1>::Zero(N);
+			int fast_count = 0;
+			int slow_count = 0;
+
+			Eigen::Matrix<uint8_t, -1, 1> cutAFlags = Eigen::Matrix<uint8_t, -1, 1>::Zero(N);
+			Eigen::Matrix<uint8_t, -1, 1> cutBFlags = Eigen::Matrix<uint8_t, -1, 1>::Zero(N);
+
+			// 切线生成核心
+			// 带 fwd 的都是 球面空间
+			for (int i = 0; i < N; i++) 
+			{   // 每一个障碍点的遍历
+				const Eigen::Vector3d pt_e = forwardPC.col(i);
+				const double dist = pt_e.norm(); 
+				distRs(i) = dist;
+				if (dist < epsilon) 
+				{
+					ROS_WARN_STREAM("[FIRI] division zero error likely happen. because distRs.");
+					return false;
+				}
+
+				const Eigen::Vector3d n_e = pt_e / dist;  // 平面法向量
+				const double d_e = -dist;
+
+				// 上面的两段代码就实现了球空间的 初始切面
+				const double direct_margin = drone_r * (forward.transpose()*n_e).norm();
+				// fast-slow check 
+				const bool keep_fwd_a = n_e.dot(fwd_a) + d_e + direct_margin <= epsilon;
+				const bool keep_fwd_b = n_e.dot(fwd_b) + d_e + direct_margin <= epsilon;
+				const bool fast = keep_fwd_a && keep_fwd_b;
+				cutAFlags(i) = keep_fwd_a ? 0 : 1;
+				cutBFlags(i) = keep_fwd_b ? 0 : 1;
+				if (fast)
+				{
+					fast_count++;
+					tangents.block<1, 3>(i, 0) = n_e.transpose();
+					tangents(i, 3) = d_e + direct_margin;
+					continue;
+				}
+				
+				// 接下来就是比较难处理的 slow 点
+				// slow 不应该通过
+				slow_count++;
+				slowFlags(i)=1;
+				const Eigen::Vector3d margin_pt_e = pt_e - direct_margin * n_e;
+
+				tangents.block<1, 3>(i, 0) = n_e.transpose();
+				tangents(i, 3) = d_e ;
+				// 是 a 被切
+				if (not keep_fwd_a)
+				{
+					// 所以应该重新构造平面
+					// 利用 directionmargin point做
+					const Eigen::Vector3d delta = margin_pt_e - fwd_a;
+					const double dist_delta = delta.squaredNorm();
+					if (dist_delta > epsilon)
+					{
+						tangents.block<1,3>(i,0) = (fwd_a - (delta.dot(fwd_a) / dist_delta) * delta).transpose();
+						distRs(i) = tangents.block<1,3>(i,0).norm();
+						tangents(i,3) = -distRs(i);
+						tangents.block<1,3>(i,0) /= distRs(i);
+					}
+					// 只要障碍点应该在内侧，就说明保护球传过了a b，生成失效
+					const double obs_side = tangents.block<1,3>(i, 0).dot(pt_e) + tangents(i,3);
+					if(obs_side <= epsilon)
+					{
+						ROS_WARN_STREAM(
+							"[FIRI] new tangent failed: pt_e is inside, fallback to 3-point plane. "
+							<< "obs_side=" << obs_side
+							<< ", loop=" << loop);
+						// 让外面的三单点firi兜底
+						return false;
+					}
+				}
+				
+				// 如果是 b 被切
+				const double is_b_safe = tangents.block<1,3>(i, 0).dot(fwd_b) + tangents(i,3);
+				if(is_b_safe >= epsilon)
+				{
+					// 说明 b 被切到外面了
+					const Eigen::Vector3d delta = margin_pt_e - fwd_b;
+					const double dist_delta = delta.squaredNorm();
+					if (dist_delta > epsilon)
+					{
+						tangents.block<1,3>(i,0) = (fwd_b - (delta.dot(fwd_b) / dist_delta) * delta).transpose();
+						distRs(i) = tangents.block<1,3>(i,0).norm();
+						tangents(i,3) = -distRs(i);
+						tangents.block<1,3>(i,0) /= distRs(i);
+					}
+					// 只要障碍点应该在内侧，就说明保护球传过了a b，生成失效
+					const double obs_side = tangents.block<1,3>(i, 0).dot(pt_e) + tangents(i,3);
+					if(obs_side <= epsilon)
+					{
+						ROS_WARN_STREAM(
+							"[FIRI] new tangent failed: pt_e is inside, fallback to 3-point plane. "
+							<< "obs_side=" << obs_side
+							<< ", loop=" << loop);
+						// 让外面的三单点firi兜底
+						return false;
+					}
+				}
+
+				// a又被切了
+				const double is_a_safe = tangents.block<1,3>(i, 0).dot(fwd_a) + tangents(i,3);
+				if(is_a_safe >= epsilon)
+				{
+					// 平行 a-b 且过 margin_pt_e ，垂直与 a-b-margin_pt_e的平面
+					const Eigen::Vector3d ab = fwd_b - fwd_a;
+					const Eigen::Vector3d am = margin_pt_e - fwd_a;
+
+					// a, b, margin_pt_e 三点平面的法向
+					const Eigen::Vector3d normal_a_b_pt_e = ab.cross(am);
+					Eigen::Vector3d n_raw = ab.cross(normal_a_b_pt_e);
+					const double n_norm = n_raw.norm();
+					if (n_norm <= epsilon) 
+					{
+					ROS_WARN_STREAM(
+						"[FIRI] margin fallback plane degenerate. "
+						<< "n_norm=" << n_norm
+						<< ", loop=" << loop);
+					return false;
+					}
+					Eigen::Vector3d n_e_new = n_raw / n_norm;
+					double d = -n_e_new.dot(margin_pt_e);  // 黑塞标准型
+
+					const double side_a = n_e_new.dot(fwd_a) + d;  // fwd_a 到平面的有符距离
+					if(side_a > epsilon)
+					{
+						n_e_new = -n_e_new;
+						d = -d;
+					}  // 反转平面
+					const double side_pt = n_e_new.dot(pt_e) + d;  // 原始障碍物点到平面的有符号距离
+					if(side_pt < epsilon)
+					{
+						// 说明平面把 a b pt_e 弄到面的一侧了，说明就是彻底反转到了另一面，无法保证安全了
+						return false;
+					}
+					
+					tangents.block<1, 3>(i, 0) = n_e_new.transpose();
+					tangents(i, 3) = d;
+					distRs(i) = std::abs(d);
+				}
+
 			}
-			if (tangents.block<1, 3>(i, 0).dot(fwd_b) + tangents(i, 3) > epsilon) { 
-				const Eigen::Vector3d delta = forwardPC.col(i) - fwd_b;
-				tangents.block<1, 3>(i, 0) = fwd_b - (delta.dot(fwd_b) / delta.squaredNorm()) * delta;
-				distRs(i) = tangents.block<1, 3>(i, 0).norm();
-				tangents(i, 3) = -distRs(i);
-				tangents.block<1, 3>(i, 0) /= distRs(i);
-			}
-			if (tangents.block<1, 3>(i, 0).dot(fwd_a) + tangents(i, 3) > epsilon) { 
-				tangents.block<1, 3>(i, 0) = (fwd_a - forwardPC.col(i)).cross(fwd_b - forwardPC.col(i)).normalized();
-				tangents(i, 3) = -tangents.block<1, 3>(i, 0).dot(fwd_a);
-				tangents.row(i) *= tangents(i, 3) > 0.0 ? -1.0 : 1.0;
+			if (slow_count>0)
+			{
+				ROS_WARN_STREAM("[FIRI] end with fast-slow mode. slow_count = " << slow_count);  // 这个输出做成结流没意义
 			}
 		}
+		else  // 非最后一轮沿用原始 FIRI 切面，用于更新椭球
+		{
+			// 切线生成核心
+			for (int i = 0; i < N; i++) { 
+				distRs(i) = forwardPC.col(i).norm();                                    
+				tangents(i, 3) = -distRs(i);                                            
+				tangents.block<1, 3>(i, 0) = forwardPC.col(i).transpose() / distRs(i);  
+				if (tangents.block<1, 3>(i, 0).dot(fwd_a) + tangents(i, 3) > epsilon) { 
 
+					const Eigen::Vector3d delta = forwardPC.col(i) - fwd_a;
+					tangents.block<1, 3>(i, 0) = fwd_a - (delta.dot(fwd_a) / delta.squaredNorm()) * delta; 
+					distRs(i) = tangents.block<1, 3>(i, 0).norm();                                         
+					tangents(i, 3) = -distRs(i);
+					tangents.block<1, 3>(i, 0) /= distRs(i);
+				}
+				if (tangents.block<1, 3>(i, 0).dot(fwd_b) + tangents(i, 3) > epsilon) { 
+					const Eigen::Vector3d delta = forwardPC.col(i) - fwd_b;
+					tangents.block<1, 3>(i, 0) = fwd_b - (delta.dot(fwd_b) / delta.squaredNorm()) * delta;
+					distRs(i) = tangents.block<1, 3>(i, 0).norm();
+					tangents(i, 3) = -distRs(i);
+					tangents.block<1, 3>(i, 0) /= distRs(i);
+				}
+				if (tangents.block<1, 3>(i, 0).dot(fwd_a) + tangents(i, 3) > epsilon) { 
+					tangents.block<1, 3>(i, 0) = (fwd_a - forwardPC.col(i)).cross(fwd_b - forwardPC.col(i)).normalized();
+					tangents(i, 3) = -tangents.block<1, 3>(i, 0).dot(fwd_a);
+					tangents.row(i) *= tangents(i, 3) > 0.0 ? -1.0 : 1.0;
+				}
+			}
+		}
+		// 两类切平面的合并
 		Eigen::Matrix<uint8_t, -1, 1> bdFlags = Eigen::Matrix<uint8_t, -1, 1>::Constant(M, 1);
 		Eigen::Matrix<uint8_t, -1, 1> pcFlags = Eigen::Matrix<uint8_t, -1, 1>::Constant(N, 1);
 
@@ -350,11 +506,13 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 			minSqrR = distRs.minCoeff(&pcMinId);
 		}
 		for (int i = 0; !completed && i < (M + N); ++i) {
-			if (minSqrD < minSqrR) {
-				forwardH.block<1, 3>(nH, 0) = forwardB.row(bdMinId);
-				forwardH(nH, 3) = forwardD(bdMinId);
+			if (minSqrD < minSqrR) {  // 选 aabb 面。distDs 是 aabb 到中心的距离；minSqrR 是 障碍点到中心的距离
+				forwardH.block<1, 3>(nH, 0) = forwardB.row(bdMinId);  // bdMinId 是被选中的bd面编号
+				forwardH(nH, 3) = forwardD(bdMinId) + bd_margin(bdMinId);
+				// 平面内推但是不使用内推后的距离排序选框而是旧的，因为希望只有在被迫选中时才使用保守面
+				// 实际上 所有 aabb框都被选完才会结束； 是 aabb框 维护了走廊的封闭性，所以这里有点小问题可能还需要改
 				bdFlags(bdMinId) = 0;
-			} else {
+			} else {  // 选 obs_tangent 
 				forwardH.row(nH) = tangents.row(pcMinId);
 				pcFlags(pcMinId) = 0;
 			}
@@ -386,7 +544,7 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 			}
 			++nH;
 		}
-
+		// 转回世界坐标
 		hPoly.resize(nH, 4);
 		for (int i = 0; i < nH; ++i) {
 			hPoly.block<1, 3>(i, 0) = forwardH.block<1, 3>(i, 0) * forward;

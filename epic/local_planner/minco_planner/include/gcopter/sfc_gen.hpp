@@ -109,7 +109,8 @@ namespace sfc_gen {
  * @param highCorner   the upper corner of the bounding box represented as a 3D
  * vector
  * @param progress     沿路径切分步长 as a double value 7
- * @param range        the range as a double value 3  每个凸多面体的搜索范围
+ * @param range        the range as a double value 3  每个凸多面体的搜索范围  
+ *                     来自yaml参数 MaxCorridorSize ,当前是 3.5
  * @param hpolys       the vector of 4x4 matrices representing the convex  输出：凸多面体序列（每个是 MatrixX4d，半空间表示）
  * polygons
  * @param eps          the epsilon value as a double (optional, default value
@@ -124,7 +125,7 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
                         
                         const std::vector<std::vector<Eigen::Vector3d>>* voxel_raw = nullptr,  // 这个是下采样的原试点表
                         double voxel_radius = 0.1,   // 这个是最大可能嵌入的深度
-                        const double drone_r = 0.1  // 飞机半径  
+                        const double drone_r = 0.0  // 飞机半径  
                       ) {
   // hpolys.clear();
   const int n = path.size();
@@ -214,20 +215,30 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
     // 转换下格式发给FIRI
     Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(data_tmp, 3, valid_pc.size());  
     
-    firi::firi(bd, pc, a, b, hp, 4, eps, pc_raw_ptr, drone_r); // 计算出包含a和b的凸包 ，就是必须包含a和b,这样a和b的路径也都在飞行走廊里了
+    bool firi_ok = firi::firi(bd, pc, a, b, hp, 4, eps, pc_raw_ptr, drone_r); // 计算出包含a和b的凸包 ，就是必须包含a和b,这样a和b的路径也都在飞行走廊里了
     // const int M = bd.rows();  // 边界面数量 M = bd.rows() 6 ; N = pc.cols(); 障碍点数量
     // 0.2 下采样是 pc 2000 个点
     // ROS_WARN_STREAM_THROTTLE(1.0, "FUCK EVERYONE:" << pc.cols());
     // Eigen::MatrixX4d hp_origin = hp;
     // 将凸包向里收缩，收缩大小为膨胀半径
-    shrink_hp(hp, dilate_radius_);
+    if(not firi_ok)
+    {
+      ROS_WARN_STREAM_THROTTLE(1.0, "[SFC gen] firi generate failed firi_ok = False");
+    }
+    if(firi_ok && drone_r < eps)
+      shrink_hp(hp, dilate_radius_);
 
     Eigen::Vector4d bh(b(0), b(1), b(2), 1.0); // 其次坐标 b 
+ 
+    // const Eigen::VectorXd b_side = hp * bh;  // hp 不是一个面，是很多面
+    // const double b_max = firi_ok ? b_side.maxCoeff() : 0.0;  // 找到最危险的面 如果生成失败就没法检查，所以 fail 了就置0
+    // ROS_WARN_STREAM(
+    //   "[SFC gen] fallback trigger. " << "firi_ok=" << firi_ok << ", b_max=" << b_max );
 
     // 适当放宽条件，不能没有可行解
     num_zwx_test +=1.0;
-    // 如果 b 不在当前多面体内部
-    if (((hp * bh).array() > -eps).cast<int>().sum() > 0) {
+    // 如果 b 不在当前多面体内部 或者 走廊保护失败
+    if (  !firi_ok || ((hp * bh).array() > eps).cast<int>().sum() > 0 ) {  // 这里 本来是 -eps
       firi::firi(bd, pc, a, a, hp, 1);
       hp.col(3) = hp.col(3).array() + dilate_radius_ * hp.leftCols(3).rowwise().norm().array();
       hpolys.emplace_back(hp);
@@ -239,14 +250,18 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
       hpolys.emplace_back(hp);
 
       num_zwx_test_remake_because_b += 1.0;
-      ROS_WARN_STREAM_THROTTLE(1.0, "[SFC gen] b outside poly,but have to use. re_firi proportion= " << num_zwx_test_remake_because_b/num_zwx_test *100.0 << "%");
+      ROS_WARN_STREAM("[SFC gen] b outside poly. re_firi proportion= " << num_zwx_test_remake_because_b/num_zwx_test *100.0 << "%");
 
     }
     // 补救措施： 
     if (hpolys.size() != 0) {  // 防止空vector 最后一个多面体
       const Eigen::Vector4d ah(a(0), a(1), a(2), 1.0);
       // 如果是 a 不在
-      if (3 <= ((hp * ah).array() > -eps).cast<int>().sum() + ((hpolys.back() * ah).array() > -eps).cast<int>().sum()) {
+      // 这里的判断方式不是 a 在不在 走廊内部，而是 是不是足够好的在内部
+      // 3 <= current_bad_count + previous_bad_count
+      // 就是不够好的面大于等于 3 就加个在 a 的走廊补丁
+      if (3 <= ((hp * ah).array() > +eps).cast<int>().sum() + ((hpolys.back() * ah).array() > +eps).cast<int>().sum()) {
+        ROS_WARN_STREAM_THROTTLE(1.0, "[SFC gen] a outside poly, if fuck someone may resolved or like code , add a extra corrider at a.");
         firi::firi(bd, pc, a, a, gap, 1);
         hpolys.emplace_back(gap);
       }
