@@ -63,6 +63,12 @@ struct VoxelDownsampleResult {
   /// FIRI 双走廊薄膜检查 raw point 侵入必撞区时使用
   std::vector<std::vector<Eigen::Vector3d>> voxel_raw;
 
+  /// 与 surf_points 索引对齐的体素支撑界（raw 相对质心的轴向半宽，逐轴 >= 0）
+  ///   ∀ q ∈ voxel_raw[i], 单位方向 n̂:
+  ///     |n̂·(q − surf_points[i])| ≤ s_i(n̂) = |n̂|·voxel_ext[i]
+  /// FIRI 最后一轮用它做 O(1) raw 排除，代替遍历 voxel_raw
+  std::vector<Eigen::Vector3d> voxel_ext;
+
   /// 体素 key → 原始点（按 key 查询用，例如 bd 边界修复的外扩过滤）
   std::unordered_map<Eigen::Vector3i, std::vector<Eigen::Vector3d>, VoxelHash, VoxelEqual>
       voxel_map;
@@ -115,13 +121,20 @@ inline VoxelDownsampleResult voxelDownsample(const PointVector &raw_points,
   const std::size_t n_voxels = sum_map.size();
   result.surf_points.reserve(n_voxels);
   result.voxel_raw.reserve(n_voxels);
+  result.voxel_ext.reserve(n_voxels);
   for (const auto &kv : sum_map) {
     const Eigen::Vector3i &key = kv.first;
     const Eigen::Vector3d &sum = kv.second;
     const auto &pts = result.voxel_map[key];  // 之前放到 map 里的原始点
     const double n = static_cast<double>(pts.size());
-    result.surf_points.emplace_back(sum / n);
+    const Eigen::Vector3d centroid = sum / n;
+    Eigen::Vector3d ext = Eigen::Vector3d::Zero();
+    for (const Eigen::Vector3d &q : pts) {
+      ext = ext.cwiseMax((q - centroid).cwiseAbs());
+    }
+    result.surf_points.emplace_back(centroid);
     result.voxel_raw.emplace_back(pts);
+    result.voxel_ext.emplace_back(ext);
   }
 
   return result;

@@ -30,11 +30,13 @@
 #include "lbfgs.hpp"
 #include "sdlp.hpp"
 #include <Eigen/Eigen>
+#include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <vector>
 
 namespace firi {
@@ -276,7 +278,12 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
                  const double epsilon = 1.0e-6,
 				// 增加内嵌的障碍点的移除
 				const std::vector<std::vector<Eigen::Vector3d>>* pc_raw = nullptr,
-				double drone_r = 0.0  // 需显示调用
+				double drone_r = 0.0,  // 需显示调用
+				// pc_ext[i]: 体素 i 内 raw 相对质心 pc.col(i) 的轴向半宽（世界系，逐轴>=0）
+				// 支撑值 s_i(n̂) = |n̂|·pc_ext[i] 是该体素全部 raw 沿 n̂ 偏移的上界
+				const std::vector<Eigen::Vector3d>* pc_ext = nullptr,
+				// raw 深度容差：允许 raw 到最终走廊的距离降到 drone_r - delta_tol
+				const double delta_tol = 0.0
 				) {
 	const Eigen::Vector4d ah(a(0), a(1), a(2), 1.0);
 	const Eigen::Vector4d bh(b(0), b(1), b(2), 1.0);
@@ -339,7 +346,22 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 				const double d_e = -dist;
 
 				// 上面的两段代码就实现了球空间的 初始切面
-				const double direct_margin = drone_r * (forward.transpose()*n_e).norm();
+				// n_w: 世界系法向（未归一化）。世界距离 δ_w 对应球空间函数值 δ_w*‖n_w‖
+				const Eigen::Vector3d n_w = forward.transpose() * n_e;
+				const double n_w_norm = n_w.norm();
+				if (!(n_w_norm > epsilon)) {
+					return false;
+				}
+				// 体素支撑界：该体素全部 raw 沿 -n̂_w 方向最多比质心深入 s_i，
+				// 把 max(0, s_i - delta_tol) 叠进本面的内缩量，支撑体素的 raw
+				// 就直接满足 drone_r - delta_tol，无需事后修复
+				double margin_world = drone_r;
+				if (pc_ext != nullptr) {
+					const double support =
+						n_w.cwiseAbs().dot((*pc_ext)[i]) / n_w_norm;
+					margin_world += std::max(0.0, support - delta_tol);
+				}
+				const double direct_margin = margin_world * n_w_norm;
 				// fast-slow check 
 				const bool keep_fwd_a = n_e.dot(fwd_a) + d_e + direct_margin <= epsilon;
 				const bool keep_fwd_b = n_e.dot(fwd_b) + d_e + direct_margin <= epsilon;
@@ -501,9 +523,13 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 		bool completed = false;
 		int bdMinId = 0, pcMinId = 0;
 		double minSqrD = distDs.minCoeff(&bdMinId);
-		double minSqrR = INFINITY;
+		double minSqrR;
 		if (distRs.size() != 0) {
 			minSqrR = distRs.minCoeff(&pcMinId);
+		}
+		else
+		{
+			minSqrR = INFINITY;
 		}
 		for (int i = 0; !completed && i < (M + N); ++i) {
 			if (minSqrD < minSqrR) {  // 选 aabb 面。distDs 是 aabb 到中心的距离；minSqrR 是 障碍点到中心的距离
@@ -512,12 +538,15 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 				// 平面内推但是不使用内推后的距离排序选框而是旧的，因为希望只有在被迫选中时才使用保守面
 				// 实际上 所有 aabb框都被选完才会结束； 是 aabb框 维护了走廊的封闭性，所以这里有点小问题可能还需要改
 				bdFlags(bdMinId) = 0;
-			} else {  // 选 obs_tangent 
+			} else {  // 选 obs_tangent 切面是已经缩放过的
 				forwardH.row(nH) = tangents.row(pcMinId);
 				pcFlags(pcMinId) = 0;
 			}
-
+			// 假设任务已经完成 后面如果又发现没有排除的障碍点就继续处理
 			completed = true;
+			// --------
+			// 找下一个面
+			// --------
 			minSqrD = INFINITY;
 			for (int j = 0; j < M; ++j) {
 				if (bdFlags(j)) {
@@ -532,10 +561,10 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 			for (int j = 0; j < N; ++j) {
 				if (pcFlags(j)) {
 					if (forwardH.block<1, 3>(nH, 0).dot(forwardPC.col(j)) + forwardH(nH, 3) > -epsilon) {
-						pcFlags(j) = 0;
+						pcFlags(j) = 0;  // 只要新的平面 （nh） 能把这个点排除在 +eps > 0 就标记
 					} else {
 						completed = false;
-						if (minSqrR > distRs(j)) {
+						if (minSqrR > distRs(j)) {  // 否则需要考虑更新
 							pcMinId = j;
 							minSqrR = distRs(j);
 						}
@@ -556,6 +585,192 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 		}
 
 		maxVolInsEllipsoid(hPoly, R, p, r); //最大内接椭球
+	}
+
+	// loop 已经完整执行 后处理
+	// ---------- 体素支撑界后处理 v3 ----------
+	// ---------- voxel support boundary post-processing v3 ----------
+	// 这一段是 deepseek 生成的注释：
+	// 走廊主体沿用上面的低成本剪枝（面数、耗时与原版一致；不做严格
+	// drone_r 逐面剪枝——因为这样会把面数推到 N100 不可用的水平
+	// 安全性改由这里保证：对全部质心做一次 O(N*F) 的多面体距离下界检查
+	//   dist(q, corridor) >= max_f signed_f(q)
+	// 该下界远比“对覆盖它的那张超平面的距离”宽松，绝大多数点一次比较
+	// 即提前退出。只有下界不足的极少数点需要修复：
+	//   1) 优先平行内推其最近面（不增加面数，只收缩）
+	//   2) 内推会切 a/b 时，为该点添加一张线段分离面（严格保 a/b 与半径）
+	//   3) 仍不可行（点离 a-b 过近）则返回 false，交外层三单点 FIRI
+	// deepseek end
+	
+	/*for each voxel j {
+		best = max signed distance over faces;
+
+		if (best >= t_base + ||ext_j||) {
+		continue;  // 保守快速通过
+		}
+
+		support = s_j(normal_of_best_face);
+		need = t_base + support - best;
+
+		if (need > epsilon) {
+		residuals.push_back({j, best_face, need});
+		}
+		}*/
+	if (pc_ext != nullptr && drone_r > epsilon && N > 0) {  // 合法性检查
+		const double t_base = drone_r - delta_tol;
+		const int base_faces = hPoly.rows();  	 // 记录原面数
+		Eigen::VectorXd face_norms(base_faces);  // 记录面法向量长
+		for (int f = 0; f < base_faces; ++f) {
+			face_norms(f) = hPoly.block<1, 3>(f, 0).norm();
+			if (!(face_norms(f) > epsilon)) {
+				return false;
+			}
+		}
+
+		struct RawDeficit {  // 记录不安全面的残差结构 point_index face_index safe_need_dist
+			int point;
+			int face;
+			double need;
+		};
+		std::vector<RawDeficit> residuals;
+		for (int j = 0; j < N; ++j) {
+			const Eigen::Vector3d q = pc.col(j);  // 取列 col 
+			// s(n̂) = |n̂|·ext ≤ ‖ext‖，用于提前退出
+			const double safe_bound = t_base + (*pc_ext)[j].norm();  // 用无关上界先把safe全部排除
+			double best = -std::numeric_limits<double>::infinity();
+			int f_near = -1;
+			for (int f = 0; f < base_faces; ++f) {  // 遍历所有面 如果安全上界都安全那就安全
+				const double d =
+					(hPoly.block<1, 3>(f, 0).dot(q) + hPoly(f, 3)) /
+					face_norms(f);  // d = (n^T*q + d) / ||n||
+				if (d > best) {  // 保存最大带符号距离
+					best = d;
+					f_near = f;
+					if (best >= safe_bound) {
+						break;  // 该点必然安全
+					}  // 如果有个面已经把 点排除了，直接 退出
+				}
+			}
+			// 						  不可能会出现情况2，但是如果代码出问题出现情况2索引失效，不能执行下面的代码
+			if (best >= safe_bound || f_near < 0) {  // 前面退出了之后，如果发现这个点已经被排除，说明点是安全的，直接跳过这个点
+				continue;
+			}
+			// 没有通过下界检查，可能是不安全的
+			const Eigen::Vector3d n_hat =
+				hPoly.block<1, 3>(f_near, 0).transpose() / face_norms(f_near);
+			const double support = n_hat.cwiseAbs().dot((*pc_ext)[j]);
+			const double need = t_base + support - best;  // best 是点到平面的距离下界 是正表示需要的安全距离比实际当前点面距离更多
+			if (need > epsilon) {
+				residuals.push_back({j, f_near, need});  // 把不安全点 以及 对应他的面 记录一下
+			}
+		}
+
+		if (!residuals.empty()) {
+			const Eigen::Vector4d ah(a(0), a(1), a(2), 1.0);
+			const Eigen::Vector4d bh(b(0), b(1), b(2), 1.0);
+
+			// step 2 按面找最大内推量，一次平行 推 覆盖同面全部点
+			std::vector<double> face_push(base_faces, 0.0);  // 准备内推每张面
+			for (const RawDeficit& r : residuals) {  // for each voxel j {
+				face_push[r.face] = std::max(face_push[r.face], r.need);
+			}
+			int pushed_faces = 0;
+			for (int f = 0; f < base_faces; ++f) {  // 只是处理基础面
+				if (!(face_push[f] > 0.0)) {
+					continue;
+				}
+				Eigen::Vector4d row = hPoly.row(f).transpose();  // 行向量 表示面，拿出来修改一下
+				row(3) += face_push[f] * face_norms(f);  // 新 d
+				if (row.dot(ah) <= epsilon && row.dot(bh) <= epsilon) {  // 如果 a b 仍然安全，那么就爽了保留
+					hPoly(f, 3) = row(3);  // 内推不切 a/b：只收缩，不加面
+					++pushed_faces;
+				}
+				// 会切 a/b 的面保持不动，其残差点下放处理
+			}
+
+			// step 3 复查残差点，需要更大距离的优先
+			// 后建的分离面会顺带覆盖邻近残差点
+			std::sort(residuals.begin(), residuals.end(),
+					  [](const RawDeficit& lhs, const RawDeficit& rhs) {
+						  return lhs.need > rhs.need;
+					  });
+			int added_planes = 0;
+			for (const RawDeficit& r : residuals) {
+				const Eigen::Vector3d q = pc.col(r.point);
+				const double safe_bound = t_base + (*pc_ext)[r.point].norm();  // 粗查
+				double best = -std::numeric_limits<double>::infinity();
+				int f_near = -1;
+				const int rows_now = hPoly.rows();
+				for (int f = 0; f < rows_now; ++f) {
+					const double norm_f = hPoly.block<1, 3>(f, 0).norm();
+					const double d = (hPoly.block<1, 3>(f, 0).dot(q) + hPoly(f, 3)) / norm_f;  // 这个是 r 点到原点距离
+					if (d > best) {
+						best = d;
+						f_near = f;
+						if (best >= safe_bound) {
+							break;
+						}
+					}
+				}
+				if (best >= safe_bound || f_near < 0) {
+					continue;
+				}
+				{
+					const Eigen::Vector3d n_near =
+						hPoly.block<1, 3>(f_near, 0).transpose() / hPoly.block<1, 3>(f_near, 0).norm();
+					const double support_near = n_near.cwiseAbs().dot((*pc_ext)[r.point]);  
+					if (best >= t_base + support_near - epsilon) {
+						continue;  // 沿最近面方向已满足
+					}
+				}  // 细查
+
+				// 经过检查，这个点没有通过内推平面被排除在平面外部，那么需要做下面的动作
+
+				// 线段分离面：法向取 q 到 [a,b] 最近点方向，平面从 q 向
+				// 走廊侧后退 t_base + s，严格保 a/b（闭点不等式保证）
+				const Eigen::Vector3d ab = b - a;
+				const double ab_sq = ab.squaredNorm();
+				double t = 0.0;
+				if (ab_sq > epsilon) {
+					t = std::min(1.0, std::max(0.0, (q - a).dot(ab) / ab_sq));
+				}
+				const Eigen::Vector3d closest = a + t * ab;
+				const Eigen::Vector3d delta = q - closest;
+				const double dist_ab = delta.norm();
+				if (!(dist_ab > epsilon)) {
+					return false;
+				}
+				const Eigen::Vector3d n_hat = delta / dist_ab;
+				const double support = n_hat.cwiseAbs().dot((*pc_ext)[r.point]);
+				const double clearance = t_base + support;
+
+				if (!(dist_ab > clearance + epsilon)) {  //障碍点到路径的距离 必须小于 安全余量
+					// 保 a-b 与 raw 安全半径在几何上冲突，交三单点兜底
+					ROS_WARN_STREAM(
+						"[FIRI raw] point too close to a-b segment: dist="
+							 << dist_ab << ", need=" << clearance  << "generate fail at post-processing step3");
+					return false;
+				}
+				// 可行时构建新面
+				// 直接用 q - closest 和 q构建面
+				Eigen::Vector4d plane;
+				plane.head<3>() = n_hat;
+				plane(3) = -n_hat.dot(q) + clearance;
+				if (plane.dot(ah) > epsilon || plane.dot(bh) > epsilon) {
+					return false;
+				}
+				const int old_rows = hPoly.rows();
+				hPoly.conservativeResize(old_rows + 1, Eigen::NoChange);
+				hPoly.row(old_rows) = plane.transpose();
+				++added_planes;
+			}
+
+			ROS_WARN_STREAM(
+				"[FIRI raw] residuals=" << residuals.size()
+					<< " pushed_faces=" << pushed_faces
+					<< " added_planes=" << added_planes
+					<< " faces=" << base_faces << "->" << hPoly.rows());
+		}
 	}
 
 	return true;

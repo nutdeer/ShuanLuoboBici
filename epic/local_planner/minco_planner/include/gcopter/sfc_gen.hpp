@@ -122,10 +122,14 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
                         const Eigen::Vector3d &lowCorner, const Eigen::Vector3d &highCorner, const double &progress, const double &range, std::vector<Eigen::MatrixX4d> &hpolys,
                         const double eps = 1.0e-6,
                         const double dilate_radius_ = 0.1,
-                        
-                        const std::vector<std::vector<Eigen::Vector3d>>* voxel_raw = nullptr,  // 这个是下采样的原试点表
+
+                        const std::vector<std::vector<Eigen::Vector3d>>* voxel_raw = nullptr,  // 保留接口；生产路径不再逐 raw 遍历
                         double voxel_radius = 0.1,   // 这个是最大可能嵌入的深度
-                        const double drone_r = 0.0  // 飞机半径  
+                        const double drone_r = 0.0,  // 飞机半径
+                        // voxel_ext[i]: 与 points[i] 对齐的体素支撑界（raw 相对质心轴向半宽）
+                        const std::vector<Eigen::Vector3d>* voxel_ext = nullptr,
+                        // raw 深度容差：raw 到走廊距离允许降到 drone_r - raw_delta_tol
+                        const double raw_delta_tol = 0.0
                       ) {
   // hpolys.clear();
   const int n = path.size();
@@ -158,8 +162,9 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
     Eigen::Vector3d(4.1, 1.1, 0.2)
   };
   */
-  std::vector<std::vector<Eigen::Vector3d>> valid_pc_raw;
-  if(voxel_raw) valid_pc_raw.reserve(points.size());  // 分最外层尺寸
+  // valid_pc_ext[j] 与 valid_pc[j] 严格对齐（这是支撑界方案的硬性前提）
+  std::vector<Eigen::Vector3d> valid_pc_ext;
+  if (voxel_ext) valid_pc_ext.reserve(points.size());
 
   auto shrink_hp = [&](Eigen::MatrixX4d &hp, double radius) {
     hp.col(3) = hp.col(3).array() + radius * hp.leftCols(3).rowwise().norm().array();
@@ -184,38 +189,32 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
     bd(5, 3) = +std::max(std::min(a(2), b(2)) - range, lowCorner(2));
 
     valid_pc.clear();
-    if (voxel_raw) valid_pc_raw.clear();
+    if (voxel_ext) valid_pc_ext.clear();
 
     // zwx test
     static long double num_zwx_test = 1.0;
     static long double num_zwx_test_remake_because_b = 1.0;
 
-    // 这里是对下采样再做一个小框筛选
-    for (const Eigen::Vector3d &p : points) {  // 同时检查 6 个面
-      if ((bd.leftCols<3>() * p + bd.rightCols<1>()).maxCoeff() < 0.0) {
-        // 小于0表示点在某一个框里，可以用ikd-tree的接口代替这个函数，利用bd进行box-select
+    // 单循环筛选（严格框是外扩框的子集，旧版两轮 push 会
+    // valid_pc 重复且与 raw/ext 索引错位）：
+    // 向外扩 voxel_radius，质心在框外但 raw 可能进框的体素也要参与
+    for (size_t k = 0; k < points.size(); ++k) {
+      const Eigen::Vector3d &p = points[k];
+      if ((bd.leftCols<3>() * p + bd.rightCols<1>()).maxCoeff() < voxel_radius) {
         valid_pc.emplace_back(p);
+        if (voxel_ext) valid_pc_ext.emplace_back(voxel_ext->at(k));  // 如果传参了
       }
-    } // 筛选 bd 中的点
-
-    for (size_t k=0; k< points.size(); ++k)
-    {
-      const Eigen::Vector3d &p = points[k];  // 只读
-      if ((bd.leftCols<3>() * p + bd.rightCols<1>()).maxCoeff() < voxel_radius)  // 向外拓宽 一个误差半径
-      {
-        valid_pc.emplace_back(p);
-        if (voxel_raw) valid_pc_raw.emplace_back(voxel_raw->at(k));
-      }
-
-    }  // 筛选出来 在这个小空间里面会用到的点
+    }
 
     // 如果box没有点云，valid_pc 是空的，valid_pc[0]非法
     const double *data_tmp = valid_pc.empty() ? nullptr : valid_pc[0].data();
-    const std::vector<std::vector<Eigen::Vector3d>>* pc_raw_ptr = voxel_raw ? &valid_pc_raw : nullptr;
+    const std::vector<Eigen::Vector3d>* pc_ext_ptr =
+        (voxel_ext && !valid_pc_ext.empty()) ? &valid_pc_ext : nullptr;
     // 转换下格式发给FIRI
-    Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(data_tmp, 3, valid_pc.size());  
-    
-    bool firi_ok = firi::firi(bd, pc, a, b, hp, 4, eps, pc_raw_ptr, drone_r); // 计算出包含a和b的凸包 ，就是必须包含a和b,这样a和b的路径也都在飞行走廊里了
+    Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(data_tmp, 3, valid_pc.size());
+
+    bool firi_ok = firi::firi(bd, pc, a, b, hp, 4, eps, nullptr, drone_r,
+                              pc_ext_ptr, raw_delta_tol); // 计算出包含a和b的凸包 ，就是必须包含a和b,这样a和b的路径也都在飞行走廊里了
     // const int M = bd.rows();  // 边界面数量 M = bd.rows() 6 ; N = pc.cols(); 障碍点数量
     // 0.2 下采样是 pc 2000 个点
     // ROS_WARN_STREAM_THROTTLE(1.0, "FUCK EVERYONE:" << pc.cols());

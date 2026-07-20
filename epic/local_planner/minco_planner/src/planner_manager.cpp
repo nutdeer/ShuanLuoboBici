@@ -310,6 +310,9 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   std::vector<Eigen::MatrixX4d> hPolys; // 多面体飞行走廊
   // safe flight corridor generation
   // 生成飞行走廊
+  // raw 深度容差：raw 点到走廊距离允许降到 drone_r - sfc_raw_delta_tol，
+  // 用于吸收体素支撑界的少量保守性/传感器噪声（对应旧 top-3 均值的意图）
+  const double sfc_raw_delta_tol = 0.03;
   sfc_gen::convexCover(gcopter_viz_, path_shorten, surf_points,
                        min_bd.cast<double>(), max_bd.cast<double>(), 7.0,
                        gcopter_config_->corridor_size, hPolys, 1e-6,
@@ -317,8 +320,10 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
 
                        &ds_result.voxel_raw,
                        sfc_voxel_radius,
-                       gcopter_config_->dilateRadiusHard
-                      );  
+                       gcopter_config_->dilateRadiusHard,
+                       &ds_result.voxel_ext,
+                       sfc_raw_delta_tol
+                      );
   Eigen::Matrix<double, 3, 4> iniState;
   Eigen::Matrix<double, 3, 4> finState;
   double time_now = (ros::Time::now() - local_data_.start_time_).toSec();
