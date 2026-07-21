@@ -358,7 +358,8 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
   //   ROS_ERROR("time too long");
   //   exit(0);
   // }*/
-  ROS_INFO("update topo skeleton cost: %fms, update odom vertex cost:%fms ",
+  ROS_INFO_STREAM_THROTTLE(1.0,
+    "update topo skeleton cost: %fms, update odom vertex cost:%fms ",
            (t3 - t2).toSec() * 1000, (t4 - t3).toSec() * 1000);
 
   Eigen::Vector3d vel = fd_->odom_vel_.cast<double>();

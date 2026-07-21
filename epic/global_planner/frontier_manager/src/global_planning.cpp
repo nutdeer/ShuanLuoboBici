@@ -177,6 +177,8 @@ void FrontierManager::generateTSPViewpoints(Eigen::Vector3f&center,  vector<Topo
     vp_node->yaw_ = tsp_clusters[idx2[i]]->best_vp_yaw_;
     viewpoints.push_back(vp_node);
   }
-  ROS_INFO("vp cluster cost: %fms  ,remove unreachable cost: %fms, select vp cost: %fms", (t2 - t1).toSec() * 1000, (t3 - t2).toSec() * 1000,
+  ROS_INFO_STREAM_THROTTLE(
+    1.0,
+    "vp cluster cost: %fms  ,remove unreachable cost: %fms, select vp cost: %fms", (t2 - t1).toSec() * 1000, (t3 - t2).toSec() * 1000,
            (t4 - t3).toSec() * 1000);
 }
