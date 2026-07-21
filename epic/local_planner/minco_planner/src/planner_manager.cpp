@@ -402,7 +402,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
     
     is_polys_not_overlap = false;
   }
-  // 飞行走廊内障碍点检测 默认关闭
+  // 飞行走廊内障碍点检测
   // 在 scene YAML 里加 `EnableSfcRawCheck: true` 即启用
   if (gcopter_config_->enableSfcRawCheck) {
     const auto sfc_raw_stats = checkRawPointsInCorridor(Searched_Points, hPolys, gcopter_config_->dilateRadiusHard);
