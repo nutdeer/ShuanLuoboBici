@@ -64,6 +64,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     }
     ROS_WARN("TAKE_OFF!!");
     transitState(WAIT_TRIGGER, "FSM");
+    break;
   }
 
   case FINISH:
