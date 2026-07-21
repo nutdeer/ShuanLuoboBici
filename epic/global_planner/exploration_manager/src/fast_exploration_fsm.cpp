@@ -14,6 +14,7 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Int32.h>
 #include <traj_utils/planning_visualization.h>
+#include <ros/console.h>
 
 using Eigen::Vector3d;
 using Eigen::Vector4d;
@@ -58,6 +59,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     {
       quadrotor_msgs::TakeoffLand takeoff_msg;
       takeoff_msg.takeoff_land_cmd = takeoff_msg.TAKEOFF;
+      takeoff_msg.takeoff_hight = 0.5;
       land_pub_.publish(takeoff_msg);
     }
     ROS_WARN("TAKE_OFF!!");
@@ -359,8 +361,8 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
   //   exit(0);
   // }*/
   ROS_INFO_STREAM_THROTTLE(1.0,
-    "update topo skeleton cost: %fms, update odom vertex cost:%fms ",
-           (t3 - t2).toSec() * 1000, (t4 - t3).toSec() * 1000);
+    "update topo skeleton cost: " << (t3 - t2).toSec() * 1000 <<"ms, update odom vertex cost:"
+                                  << (t4 - t3).toSec() * 1000 <<"ms ");
 
   Eigen::Vector3d vel = fd_->odom_vel_.cast<double>();
   Eigen::Vector3d odom = fd_->odom_pos_.cast<double>();

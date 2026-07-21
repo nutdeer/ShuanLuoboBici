@@ -7,6 +7,7 @@
  * @Copyright (c) 2024 by ning-zelin, All Rights Reserved.
  */
 #include <frontier_manager/frontier_manager.h>
+#include <ros/console.h>
 
 class UF {
 public:
@@ -179,6 +180,7 @@ void FrontierManager::generateTSPViewpoints(Eigen::Vector3f&center,  vector<Topo
   }
   ROS_INFO_STREAM_THROTTLE(
     1.0,
-    "vp cluster cost: %fms  ,remove unreachable cost: %fms, select vp cost: %fms", (t2 - t1).toSec() * 1000, (t3 - t2).toSec() * 1000,
-           (t4 - t3).toSec() * 1000);
+    "vp cluster cost: " << (t2 - t1).toSec() * 1000 <<"ms  ,remove unreachable cost: " 
+                        << (t3 - t2).toSec() * 1000 <<"ms, select vp cost: "
+                        << (t4 - t3).toSec() * 1000 <<"ms");
 }

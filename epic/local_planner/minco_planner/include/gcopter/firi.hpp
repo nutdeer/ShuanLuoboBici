@@ -482,7 +482,8 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 			}
 			if (slow_count>0)
 			{
-				ROS_WARN_STREAM("[FIRI] end with fast-slow mode. slow_count = " << slow_count);  // 这个输出做成结流没意义
+				ROS_INFO_STREAM_THROTTLE(1.0,
+					"[FIRI] end with fast-slow mode. slow_count = " << slow_count);  // 这个输出做成结流没意义
 			}
 		}
 		else  // 非最后一轮沿用原始 FIRI 切面，用于更新椭球
@@ -664,12 +665,12 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 				residuals.push_back({j, f_near, need});  // 把不安全点 以及 对应他的面 记录一下
 			}
 		}
-
 		if (!residuals.empty()) {
 			const Eigen::Vector4d ah(a(0), a(1), a(2), 1.0);
 			const Eigen::Vector4d bh(b(0), b(1), b(2), 1.0);
 
-			// step 2 按面找最大内推量，一次平行 推 覆盖同面全部点
+			// step 2 按面找最大内推量，一次平行 推 覆盖同面全部点。
+			// 端点饱和：完整内推会切 a/b 时不再放弃，推到 a/b 允许的极限
 			std::vector<double> face_push(base_faces, 0.0);  // 准备内推每张面
 			for (const RawDeficit& r : residuals) {  // for each voxel j {
 				face_push[r.face] = std::max(face_push[r.face], r.need);
@@ -679,57 +680,65 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 				if (!(face_push[f] > 0.0)) {
 					continue;
 				}
-				Eigen::Vector4d row = hPoly.row(f).transpose();  // 行向量 表示面，拿出来修改一下
-				row(3) += face_push[f] * face_norms(f);  // 新 d
-				if (row.dot(ah) <= epsilon && row.dot(bh) <= epsilon) {  // 如果 a b 仍然安全，那么就爽了保留
-					hPoly(f, 3) = row(3);  // 内推不切 a/b：只收缩，不加面
+				const double allowance = std::min(
+					-(hPoly.row(f).dot(ah)) / face_norms(f),
+					-(hPoly.row(f).dot(bh)) / face_norms(f));  // a/b 到该面的世界余量
+				const double actual_push =
+					std::min(face_push[f], allowance - epsilon);
+				if (actual_push > 0.0) {
+					hPoly(f, 3) += actual_push * face_norms(f);
 					++pushed_faces;
 				}
-				// 会切 a/b 的面保持不动，其残差点下放处理
+				// 推不满的面，其残差由 step 3 共享分离面处理
 			}
 
-			// step 3 复查残差点，需要更大距离的优先
-			// 后建的分离面会顺带覆盖邻近残差点
+			// step 3 复查残差点，need 大的优先作为共享面种子
 			std::sort(residuals.begin(), residuals.end(),
 					  [](const RawDeficit& lhs, const RawDeficit& rhs) {
 						  return lhs.need > rhs.need;
 					  });
-			int added_planes = 0;
-			for (const RawDeficit& r : residuals) {
-				const Eigen::Vector3d q = pc.col(r.point);
-				const double safe_bound = t_base + (*pc_ext)[r.point].norm();  // 粗查
-				double best = -std::numeric_limits<double>::infinity();
-				int f_near = -1;
-				const int rows_now = hPoly.rows();
-				for (int f = 0; f < rows_now; ++f) {
+			// 任意面证书：安全语义是“存在一张面 f 使
+			// signed_f(q) >= t_base + s_f(ext)”，证书可来自任何面（比如刚加的
+			// 分离面） 原来只查 argmax 面
+
+			// 新加的面可能会排除体素
+			auto isCertified = [&](const int point_idx) {
+				const Eigen::Vector3d q = pc.col(point_idx);
+				const double safe_bound = t_base + (*pc_ext)[point_idx].norm();
+				for (int f = 0; f < hPoly.rows(); ++f) {
 					const double norm_f = hPoly.block<1, 3>(f, 0).norm();
-					const double d = (hPoly.block<1, 3>(f, 0).dot(q) + hPoly(f, 3)) / norm_f;  // 这个是 r 点到原点距离
-					if (d > best) {
-						best = d;
-						f_near = f;
-						if (best >= safe_bound) {
-							break;
-						}
+					const double d =
+						(hPoly.block<1, 3>(f, 0).dot(q) + hPoly(f, 3)) / norm_f;
+					if (d >= safe_bound) {
+						return true;  // 支撑上界口径都满足，必然安全
+					}
+					const Eigen::Vector3d n_f =
+						hPoly.block<1, 3>(f, 0).transpose() / norm_f;
+					if (d >= t_base + n_f.cwiseAbs().dot((*pc_ext)[point_idx]) -
+								 epsilon) {
+						return true;
 					}
 				}
-				if (best >= safe_bound || f_near < 0) {
+				return false;
+			};
+			int added_planes = 0;
+			const Eigen::Vector3d ab = b - a;
+			const double ab_sq = ab.squaredNorm();
+			for (const RawDeficit& r : residuals) {
+				if (isCertified(r.point)) {
 					continue;
 				}
-				{
-					const Eigen::Vector3d n_near =
-						hPoly.block<1, 3>(f_near, 0).transpose() / hPoly.block<1, 3>(f_near, 0).norm();
-					const double support_near = n_near.cwiseAbs().dot((*pc_ext)[r.point]);  
-					if (best >= t_base + support_near - epsilon) {
-						continue;  // 沿最近面方向已满足
-					}
-				}  // 细查
+				const Eigen::Vector3d q = pc.col(r.point);
 
-				// 经过检查，这个点没有通过内推平面被排除在平面外部，那么需要做下面的动作
+				// 经过检查，这个点没有被任何面认证，需要新增共享分离面
 
-				// 线段分离面：法向取 q 到 [a,b] 最近点方向，平面从 q 向
-				// 走廊侧后退 t_base + s，严格保 a/b（闭点不等式保证）
-				const Eigen::Vector3d ab = b - a;
-				const double ab_sq = ab.squaredNorm();
+				// 共享分离面
+				// 旧代码是 只贴住种子点的一张面 现在改成 尽量覆盖一批残差点的共享面
+				
+				// 可保护）。偏置不再贴着种子（旧实现只认证种子自己，邻居
+				// 差几毫米认证不过又各自加面 → 一片墙退化成 O(residuals)
+				// 张扇形面，run3 实测最坏 48 张）。改为在不切 a/b 的极限
+				// d_limit 内取 max{d_i}，让一张面认证所有够得着的残差。
 				double t = 0.0;
 				if (ab_sq > epsilon) {
 					t = std::min(1.0, std::max(0.0, (q - a).dot(ab) / ab_sq));
@@ -751,11 +760,35 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 							 << dist_ab << ", need=" << clearance  << "generate fail at post-processing step3");
 					return false;
 				}
-				// 可行时构建新面
-				// 直接用 q - closest 和 q构建面
+				// 要求 a,b 都在走廊内：
+				// n_hat dot a + d <= 0
+  				// n_hat dot b + d <= 0
+				// 移项：
+				// d <= -n_hat dot a
+				// d <= -n_hat dot b
+
+				// d 越大走廊收缩越多，收缩恒安全；唯一约束是不切 a/b
+				const double d_limit = -std::max(n_hat.dot(a), n_hat.dot(b)) - epsilon;  // 可接受的最大收缩
+				const double d_seed = -n_hat.dot(q) + clearance;
+				if (d_seed > d_limit) {
+					// 种子自身的安全偏置就会切 a/b（几何冲突），交兜底
+					return false;
+				}
+				double d_new = d_seed;
+				for (const RawDeficit& other : residuals) {
+					const Eigen::Vector3d qo = pc.col(other.point);  // 对于 p_other 
+					// 如果 qo 在面外侧，要满足：
+					// n_hat dot q_o + d >= t_base + support(n_hat, ext_o)
+					const double d_o = t_base +
+						n_hat.cwiseAbs().dot((*pc_ext)[other.point]) -
+						n_hat.dot(qo);
+					if (d_o > d_new && d_o <= d_limit) {  // d_new 尽量覆盖更多
+						d_new = d_o;
+					}
+				}
 				Eigen::Vector4d plane;
 				plane.head<3>() = n_hat;
-				plane(3) = -n_hat.dot(q) + clearance;
+				plane(3) = d_new;
 				if (plane.dot(ah) > epsilon || plane.dot(bh) > epsilon) {
 					return false;
 				}
@@ -764,12 +797,11 @@ inline bool firi(const Eigen::MatrixX4d& bd, const Eigen::Matrix3Xd& pc,
 				hPoly.row(old_rows) = plane.transpose();
 				++added_planes;
 			}
-
-			ROS_WARN_STREAM(
-				"[FIRI raw] residuals=" << residuals.size()
-					<< " pushed_faces=" << pushed_faces
-					<< " added_planes=" << added_planes
-					<< " faces=" << base_faces << "->" << hPoly.rows());
+			ROS_INFO_STREAM_THROTTLE(
+				3.0,"[FIRI raw] residuals=" << residuals.size()
+						<< " pushed_faces=" << pushed_faces
+						<< " added_planes=" << added_planes
+						<< " faces=" << base_faces << "->" << hPoly.rows());
 		}
 	}
 
