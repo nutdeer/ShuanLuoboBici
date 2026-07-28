@@ -161,9 +161,9 @@ class RegionNode {
 public:
   typedef std::shared_ptr<RegionNode> Ptr;
   RegionNode(Eigen::Vector3i region_idx);
-  Eigen::Vector3i region_idx_;
-  int his_odom_id_;
-  unordered_set<TopoNode::Ptr> topo_nodes_;
+  Eigen::Vector3i region_idx_;                // 这个块在 3d网格的索引 (i,j,k)
+  int his_odom_id_;                           // -1 飞机还没来过这个块
+  unordered_set<TopoNode::Ptr> topo_nodes_;   // 块里的拓扑节点集合
 };
 
 class BubbleUnionSet {

@@ -20,7 +20,7 @@ void LIOInterface::init(ros::NodeHandle &nh) {
   nh.getParam("lidar_perception/lidar_pitch", lp_->lidar_pitch_);
   for (int i = 0; i < lp_->box_num_; i++) {
     std::vector<double> tmp;
-    nh.getParam("box_" + to_string(i) + "/down", tmp);
+    nh.getParam("box_" + to_string(i) + "/down", tmp);  // box_0/down
     Eigen::Vector3f tmp1(tmp[0], tmp[1], tmp[2]);
     nh.getParam("box_" + to_string(i) + "/up", tmp);
     Eigen::Vector3f tmp2(tmp[0], tmp[1], tmp[2]);

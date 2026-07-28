@@ -121,7 +121,7 @@ double FastExplorationManager::getPathCost(TopoNode::Ptr &n1,
     //   yaw_cost *= ep_->w_yawdir_;
     // }
 
-    // 赵文熙 加的，希特勒万岁
+    // 赵文熙 加的
     Eigen::Vector3f dir = n2->center_ - n1->center_;
     if (dir.norm() > 1e-3) {
       float target_yaw = atan2(dir.y(), dir.x()); // 飞向目标的偏航角

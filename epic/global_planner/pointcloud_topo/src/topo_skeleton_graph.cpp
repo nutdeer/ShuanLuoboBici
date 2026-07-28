@@ -806,6 +806,7 @@ void TopoGraph::updateSkeleton() {
   mutex new_nodes_mtx;
   ros::Time t0 = ros::Time::now();
   for (auto &region : toponodes_update_region_arr_) {
+    // toponodes_update_region_arr_ 是雷达照到的地方
     for (auto &node : region->topo_nodes_) {
       if (!node->is_viewpoint_)
         old_nodes.push_back(node);

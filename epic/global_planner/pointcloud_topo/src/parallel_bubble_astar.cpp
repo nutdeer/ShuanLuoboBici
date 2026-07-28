@@ -310,7 +310,7 @@ bool ParallelBubbleAstar::collisionCheck_shortenPath(vector<Eigen::Vector3f> &pa
 //   path.swap(path_shorten);
 //   return true;
 // }
-// 赵文熙改，希特勒万岁
+// 赵文熙改
     for (auto &idx : indices) {
         path_shorten.emplace_back(path[idx]);
       }
