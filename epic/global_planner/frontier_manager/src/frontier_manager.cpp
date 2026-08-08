@@ -1193,21 +1193,22 @@ void FrontierManager::initClusterViewpoints(ClusterInfo::Ptr &cluster) {
       return;
     vps_init.emplace_back(vp.x(), vp.y(), vp.z());
   };
+
   for (auto &ovp : origin_viewpoints_) {
     tryAddViewpoint(ovp + cluster->center_);
   }
   // 兜底：模板只在中心上方采样，靠近探索箱 z 上限的聚类（如树冠层前沿）
   // 会全部出界导致永远生成不出视点；此时把模板 z 镜像到中心下方再采一次
-  // （fov_viewpoint_up 较大，仰视观测可行）
   // 代码级修改不太合理,只要在视点生成模板那里配好对称参数就行, 可以删除的代码
   /*
-  if (vps_init.empty()) {
-    for (auto &ovp : origin_viewpoints_) {
+  if (vps_init.empty()) 
+  {
+    for (auto &ovp : origin_viewpoints_) 
+    {
       tryAddViewpoint(cluster->center_ +
                       Eigen::Vector3f(ovp.x(), ovp.y(), -ovp.z()));
     }
-  */
-  }
+  }*/
   if (vps_init.empty()) {
     cluster->is_reachable_ = false;
     return;
@@ -1220,6 +1221,7 @@ void FrontierManager::initClusterViewpoints(ClusterInfo::Ptr &cluster) {
   radius_vec.resize(vps_init.size(), 0.0);
   for (int i = 0; i < vps_init.size(); i++) {
     radius_vec[i] = lidar_map_interface_->getDisToOcc(vps_init[i]);
+    // radius_vec 记录了 vp到occ 的距离
   }
   // DB-SCAN 基于连通性将初始viewpoint聚成几类
   std::vector<int> labels;
@@ -1248,7 +1250,7 @@ void FrontierManager::initClusterViewpoints(ClusterInfo::Ptr &cluster) {
     labels[i] = cluster_id;
     std::list<size_t> queue;
     queue.push_back(i);
-    while (!queue.empty()) {
+    while (!queue.empty()) {  // 用队列实现了 DB-SCANS, 发现有邻居就开始
       size_t current = queue.front();
       queue.pop_front();
       if (getNbrs(current, nbr_idx) == 0)
@@ -1325,31 +1327,35 @@ void FrontierManager::removeUnreachableViewpoints(vector<ClusterInfo::Ptr> &clus
   vector<bool> vp_cluster_kept;
   vp_cluster_kept.resize(nodes2insert.size(), true);
   // 可以并行
-  for (int i = 0; i < nodes2insert.size(); i++) {
+  for (int i = 0; i < nodes2insert.size(); i++) 
+  {
     if (nodes2insert[i]->neighbors_.empty()) {
       vp_cluster_kept[i] = false;
       continue;
     }
     vector<TopoNode::Ptr> topo_path;
+    // 在 odom 和历史里程计节点中，找到离当前视点节点最近的一个
     auto closest_node = graph_->odom_node_;
-    float closest_dis =
-        (closest_node->center_ - nodes2insert[i]->center_).squaredNorm();
-    for (auto &hodom : graph_->history_odom_nodes_) {
-      if ((hodom->center_ - nodes2insert[i]->center_).squaredNorm() <
-          closest_dis) {
+    float closest_dis = (closest_node->center_ - nodes2insert[i]->center_).squaredNorm();
+    for (auto &hodom : graph_->history_odom_nodes_) 
+    {
+      if ((hodom->center_ - nodes2insert[i]->center_).squaredNorm() < closest_dis) 
+      {
         closest_dis = (hodom->center_ - nodes2insert[i]->center_).squaredNorm();
         closest_node = hodom;
       }
     }
+    // 从 closest_node A* 搜索到视点节点，搜不到 不可达 → 丢弃该视点候选
     if (!graph_->graphSearch(closest_node, nodes2insert[i], topo_path, 3e-4)) {
       vp_cluster_kept[i] = false;
-    } else {
+    } else {  // 可达 → 记录拓扑路径长度
       clusters[nodeidx2clusteridx[i]]
           ->vp_clusters_[nodeidx2vpclusteridx[i]]
           .distance_ = graph_->getPathLength(topo_path);
     }
   }
   graph_->removeNodes(nodes2insert);
+  // 现在就对视觉点都可达检查过了
   vector<unordered_set<int>> kept_vp_cluster;
   kept_vp_cluster.resize(clusters.size(), unordered_set<int>());
   for (int i = 0; i < vp_cluster_kept.size(); i++) {

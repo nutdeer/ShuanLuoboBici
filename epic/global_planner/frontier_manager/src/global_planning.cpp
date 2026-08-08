@@ -65,6 +65,26 @@ void FrontierManager::generateTSPViewpoints(Eigen::Vector3f&center,  vector<Topo
     distance_odom2cluster.push_back(distance);
   }
 
+  // **复验兜底：候选为空但仍有非休眠的"不可达"聚类时，取最近几个重新走
+  // 视点生成+可达性检查流水线（is_reachable_ 会被其重新写入），避免瞬时
+  // 误标不可达后聚类永远进不了候选集导致假 FINISH**
+  if (old_clusters_within_consideration.empty()) {
+    for (auto &cluster : cluster_list_) {
+      if (cluster->is_dormant_ || cluster->is_reachable_) // 休眠或者可达的跳过
+        continue;
+      old_clusters_within_consideration.push_back(cluster);
+      float distance = graph_->estimateRoughDistance(cluster->center_, cluster->odom_id_);
+      distance_odom2cluster.push_back(distance);
+    }
+    if (!old_clusters_within_consideration.empty()) {
+      ROS_WARN_STREAM_THROTTLE(
+          1.0, "[frt rescue] no reachable candidate, revalidating "
+                   << min(vpp_.local_tsp_size_, (int)old_clusters_within_consideration.size())
+                   << " of " << old_clusters_within_consideration.size()
+                   << " unreachable clusters");
+    }
+  }
+
   // **筛选提取可用聚类 (附近的+新生成的)**
   vector<int> idx;
   for (int i = 0; i < distance_odom2cluster.size(); i++)
