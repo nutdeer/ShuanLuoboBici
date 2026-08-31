@@ -30,10 +30,11 @@ int FastExplorationFSM::callExplorationPlanner() {
   // if (planner_manager_->lidar_map_interface_->getDisToOcc(fd_->odom_pos_) < planner_manager_->gcopter_config_->dilateRadiusHard)
   //   return START_FAIL;
   if (planner_manager_->topo_graph_->odom_node_->neighbors_.empty())
-    return START_FAIL;
-  if (expl_manager_->ed_->global_tour_.size() < 2)
+    return START_FAIL;  // 如果返回 这个, FSM 会到 CAUTION , 尝试飞到安全区域 (具体是怎么尝试到安全的? 需要确认)
+  if (expl_manager_->ed_->global_tour_.size() < 2)  // 没有目标点了,只剩下自己位置点了,没前沿点了滚蛋
     return NO_FRONTIER;
 
+  // 如果下一个路径点实际上不安全,就更新拓扑图并返回 FAIL
   // debug
   if (planner_manager_->lidar_map_interface_->getDisToOcc(expl_manager_->ed_->next_goal_node_->center_) <
       planner_manager_->topo_graph_->bubble_min_radius_) { // TODO:

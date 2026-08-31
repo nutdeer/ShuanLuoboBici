@@ -30,7 +30,7 @@ lidar_perception/fov_down: -7.0
 lidar_perception/lidar_pitch: 15.0      #雷达安装倾角
 lidar_perception/fov_viewpoint_up: 48.0
 lidar_perception/fov_viewpoint_down: -5.0
-lidar_perception/max_ray_length: 30     #雷达最大范围
+lidar_perception/max_ray_length: 30     #雷达最大范围  这个参数整个代码只有 1 处调用,就是更新 topo 骨架的时候在这个范围内射的点才会处理
 parallel_astar/update_connection_timeout: 0.002   #并行节点插入的时间限制
 parallel_astar/insert_node_timeout: 0.002         #
 FrontierManager/cell_size: 0.4          #前沿栅格分辨率

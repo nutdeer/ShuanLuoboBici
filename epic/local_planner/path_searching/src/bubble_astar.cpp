@@ -743,6 +743,7 @@ int FastSearcher::search(const TopoNode::Ptr &start_node,
                          const TopoNode::Ptr &end_node, double max_time,
                          std::vector<Eigen::Vector3f> &path) {
   // 用bubble_astar让start和end往外搜，构建拓扑节点
+  // 这个函数本身只调用 success = topo_graph_->graphSearch( ,本身直接在 topo node 里做 a star. 
 
   // 用topo_astar拓扑路径
   // 沿线理出path
