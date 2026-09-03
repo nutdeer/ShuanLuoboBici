@@ -110,8 +110,8 @@ public:
   typedef std::shared_ptr<TopoNode> Ptr;
   bool is_viewpoint_ = false;
   bool is_history_odom_node_ = false;
-  float yaw_;
-  Eigen::Vector3f center_;
+  float yaw_ = 0.0f;
+  Eigen::Vector3f center_ = Eigen::Vector3f::Zero();
   vector<BubbleNode::Ptr> bubbles_; // 过程量，计算出topoNode后会清空
   unordered_set<TopoNode::Ptr> neighbors_;
   unordered_map<TopoNode::Ptr, uint8_t> unreachable_nbrs_;
@@ -246,6 +246,7 @@ public:
   void getPreNbrs(TopoNode::Ptr &node, vector<TopoNode::Ptr> &nbrs);
   void getRegionsToUpdate();
   void removeNode(TopoNode::Ptr &node);
+  void removeConnectNode(TopoNode::Ptr &node);
   float estimateRoughDistance(const Eigen::Vector3f &goal, const int his_idx);
   vector<TopoNode::Ptr> history_odom_nodes_;
   vector<float> his_odom_dis_vec_;

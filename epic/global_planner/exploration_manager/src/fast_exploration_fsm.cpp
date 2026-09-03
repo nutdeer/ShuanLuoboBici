@@ -77,15 +77,22 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
       stopTraj();
     }
     ROS_WARN_THROTTLE(1.0, "Finished.");
+
+    float time_continue_finish = (ros::Time::now() - fd_->finish_start_time_).toSec();
+    if (time_continue_finish > 10.0 && fd_->home_pos_valid_) {
+      fd_->back_home_active_ = true;
+      transitState(PLAN_TRAJ, "FINFSH timeout");
+    }
+
     break;
   }
 
-  case PLAN_TRAJ:
+  case PLAN_TRAJ:  // 不给 BACK_HOME 加状态,直接用 back_home_active_ 这标记位来确定是不是回家
   {
     // 条件判断
     if (!fd_->trigger_)
       return;
-    if (planner_manager_->topo_graph_->odom_node_->neighbors_.empty())
+    if (!fd_->back_home_active_ && planner_manager_->topo_graph_->odom_node_->neighbors_.empty())
       return;
     ros::Time start = ros::Time::now();
 
@@ -93,13 +100,25 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     LocalTrajData *info = &planner_manager_->local_data_;
     double t_cur = (ros::Time::now() - info->start_time_).toSec();
     double time_to_end = info->duration_ - t_cur;
-    // 如果任务点只有两个，那么一个是当前位置一个是目标位置
-    if (expl_manager_->ed_->global_tour_.size() == 2)
+    if (!fd_->back_home_active_)
     {
-      Eigen::Vector3f goal = expl_manager_->ed_->global_tour_[1];
-      if ((goal - fd_->odom_pos_).norm() < 1e-1)
+      // 如果任务点只有两个，那么一个是当前位置一个是目标位置
+      if (expl_manager_->ed_->global_tour_.size() == 2)
       {
-        transitState(FINISH, "fsm");
+        Eigen::Vector3f goal = expl_manager_->ed_->global_tour_[1];
+        if ((goal - fd_->odom_pos_).norm() < 1e-1)
+        {
+          transitState(FINISH, "fsm");
+          return;
+        }
+      }
+    }
+    else
+    {
+      Eigen::Vector3f goal = fd_->home_pos_;
+      if ((goal - fd_->odom_pos_).norm() < 0.2)
+      {
+        transitState(LAND, "back to home");
         return;
       }
     }
@@ -107,7 +126,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     // 执行规划
     ros::Time tplan = ros::Time::now();
     exec_timer_.stop();
-    int res = callExplorationPlanner();
+    int res = generateTrajctoryPlanner();
     exec_timer_.start();  // 暂停心跳做局部规划
     ROS_INFO("\033[31m call planner \033[0m: %.3f",
              (ros::Time::now() - tplan).toSec() * 1000.0);
@@ -155,6 +174,11 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
 
   case EXEC_TRAJ:
   {
+    if ( fd_->back_home_active_ && (fd_->odom_pos_ - fd_->home_pos_).norm() < 0.2f )
+    {
+      transitState(LAND,"arrived home.");
+      break;
+    }
     // collision check
     double collision_time;
     bool safe = planner_manager_->checkTrajCollision(collision_time);
@@ -208,7 +232,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
       land_msg.takeoff_land_cmd = land_msg.LAND;
       land_pub_.publish(land_msg);
       ros::Duration(0.2).sleep();
-      ROS_WARN_THROTTLE(1.0, "NO POWER. LAND!!");
+      ROS_WARN_THROTTLE(1.0, "LAND");
     }
 
     break;
@@ -236,12 +260,25 @@ void FastExplorationFSM::init(ros::NodeHandle &nh,
   planner_manager_ = expl_manager_->planner_manager_;
 
   state_ = EXPL_STATE::INIT;
-  fd_->state_str_ = {"INIT", "WAIT_TRIGGER", "TAKE_OFF", "PLAN_TRAJ", "CAUTION",
-                     "EXEC_TRAJ", "FINISH", "LAND" };
+  fd_->state_str_ = {
+    "INIT", 
+    "WAIT_TRIGGER", 
+    "TAKE_OFF", 
+    "PLAN_TRAJ", 
+    "CAUTION",
+    "EXEC_TRAJ", 
+    "FINISH", 
+    "LAND" 
+  };
   fd_->have_odom_ = false;
   fd_->static_state_ = true;
   fd_->trigger_ = false;
   fd_->use_bubble_a_star_ = false;
+  // back home
+  fd_->back_home_active_ = false;
+  fd_->home_pos_valid_   = false;
+  fd_->home_pos_.setZero();
+  fd_->finish_start_time_ = ros::Time(0);
 
   /* Ros sub, pub and timer */
   exec_timer_ = nh.createTimer(ros::Duration(0.01), &FastExplorationFSM::FSMCallback, this);
@@ -276,7 +313,7 @@ void FastExplorationFSM::battaryCallback(const sensor_msgs::BatteryStateConstPtr
   // }
 }
 
-// 定时回调 检查全局地图是否更新
+// 定时回调 检查全局地图是否更新 这玩意儿会定时 0.2s 回调
 void FastExplorationFSM::globalPathUpdateCallback(const ros::TimerEvent &e)
 {
   updateTopoAndGlobalPath();
@@ -286,6 +323,7 @@ void FastExplorationFSM::globalPathUpdateCallback(const ros::TimerEvent &e)
 void FastExplorationFSM::updateTopoAndGlobalPath()
 {
   // **其他状态下 只进行前沿可视化**
+  // 哎呀,这是说只有在这机种状态之外会实际上更新路径和拓扑图
   if (!(state_ == WAIT_TRIGGER || state_ == PLAN_TRAJ || state_ == EXEC_TRAJ || state_ == FINISH))
   {
     global_path_update_timer_.stop();
@@ -344,11 +382,45 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
     double time2end = total_time - curr_time;
 
     if (safe && curr_time < fp_->replan_time_after_traj_start_ &&
-        time2end > fp_->replan_time_before_traj_end_)
+        time2end > fp_->replan_time_before_traj_end_)  // 公共轨迹重规划限制 所以后面不需要再限制了
     {
       global_path_update_timer_.start();
       return;
     }
+  }
+
+  // 插入回家代码 拓扑更新和安全检查已经完成
+  // 不再做全局规划, 避免 home 被覆盖
+  if (fd_->back_home_active_)
+  {
+    expl_manager_->updateGoalNode(fd_->home_pos_);
+
+    const auto &home_node = expl_manager_->ed_->next_goal_node_;
+
+    // updateGoalNode 在新点没有生成连接时会保留旧目标,要确认一下
+    const bool home_goal_ready = 
+        home_node != nullptr &&
+        (home_node->center_ - fd_->home_pos_).norm() < 0.1f &&
+        !home_node->neighbors_.empty();
+      
+    if (!home_goal_ready)
+    {
+      ROS_WARN_STREAM_THROTTLE(
+        1.0,
+        "Back home goal can not connect to topo-graph.");
+      global_path_update_timer_.start();
+      return;
+    }
+
+    // EXEC_TRAJ 中只有在前面的重规划时间检查放行后才会执行到这里，
+    // 此时需要进入 PLAN_TRAJ 生成下一条回家轨迹。
+    if (state_ == EXEC_TRAJ)
+    {
+      transitState(PLAN_TRAJ, "back home: topology updated");
+    }
+
+    global_path_update_timer_.start();
+    return;
   }
 
   // **全局路径规划**
@@ -361,12 +433,15 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
   //   ROS_ERROR("time too long");
   //   exit(0);
   // }*/
+
+  // 输出更新拓扑骨架耗时
   ROS_INFO_STREAM_THROTTLE(1.0,
     "update topo skeleton cost: " << (t3 - t2).toSec() * 1000 <<"ms, update odom vertex cost:"
                                   << (t4 - t3).toSec() * 1000 <<"ms ");
 
   Eigen::Vector3d vel = fd_->odom_vel_.cast<double>();
   Eigen::Vector3d odom = fd_->odom_pos_.cast<double>();
+  // 拿到了新的topo graph立马来一下 全局路径规划
   int res = expl_manager_->planGlobalPath(odom, vel);   // 探索路径规划 (筛选点+求解TSP)
   ros::Time t5 = ros::Time::now();
 
@@ -384,11 +459,12 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
   time_cost_pub_.publish(time_cost);
 
   cout << "total time cost: " << time_cost_now << "ms" << endl;
+  // 状态机转换
   if (res == NO_FRONTIER && state_ != WAIT_TRIGGER)
   {
     transitState(FINISH, "planGlobalPath: no frontier");
   }
-  else if (res == SUCCEED && state_ != WAIT_TRIGGER)
+  else if (res == SUCCEED && state_ != WAIT_TRIGGER)  // 有了新全局路径,马上来个针对目标点的重新规划
   {
     transitState(PLAN_TRAJ, "planGlobalPath: succeed");
   }

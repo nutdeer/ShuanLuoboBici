@@ -75,7 +75,7 @@ int ParallelBubbleAstar::search(const Eigen::Vector3f &start, const Eigen::Vecto
     step = min(1.5, lidar_map_interface_->getDisToOcc(curr_pos) - safe_distance_ - 1e-3);
     if (step <= 1e-2)
       break;
-    if (step + goal_r > (goal - curr_pos).norm()) {
+    if (step + goal_r > (goal - curr_pos).norm()) {  // 说明只是容纳中心的球是重叠的,那就可以直线到达
       path.swap(path_tmp);
       path.push_back((goal + curr_pos) / 2.0);
       path.push_back(goal);

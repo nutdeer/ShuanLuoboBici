@@ -426,12 +426,21 @@ void FastExplorationManager::solveLHK(Eigen::MatrixXd &cost_mat,
   res_file.close();
 }
 
-// 更新全局路径的目标点
 void FastExplorationManager::updateGoalNode() {
-  if (ed_->global_tour_.empty())
+  if (ed_->global_tour_.size() < 2)
     return;
-  Eigen::Vector3f goal = ed_->global_tour_[1];
 
+  updateGoalNode(ed_->global_tour_[1]);
+}
+
+
+// 更新全局路径的目标点
+
+// 把“下一个探索目标点”包装成拓扑图中的一个虚拟目
+// 标节点，并把它连接到附近可达的拓扑节点，供后面的 Bubble A*
+// 搜索使用。
+// ed_->next_goal_node_ 会被设成这个点
+void FastExplorationManager::updateGoalNode(const Eigen::Vector3f &goal) {
   struct PairPtrHash {
     std::size_t
     operator()(const std::pair<TopoNode::Ptr, TopoNode::Ptr> &p) const {
@@ -484,17 +493,21 @@ void FastExplorationManager::updateGoalNode() {
   }
   
   // 更新goal节点
-  ed_->next_goal_node_->center_ = goal;
-  ed_->next_goal_node_->is_viewpoint_ = true;
-  if (edge2insert.size() > 0) {
-    planner_manager_->topo_graph_->removeNode(ed_->next_goal_node_);
+  // 把"目标节点"从拓扑图里摘下来、按新位置重新接线
+  if (edge2insert.size() > 0) {                 // edge2insert 是 goal->nbr 联通且无碰撞
+    ed_->next_goal_node_->center_ = goal;         // 更新目标位置
+    ed_->next_goal_node_->is_viewpoint_ = true;
+    // goal_node 不会被加入到 Region_node ,所以只要把边都断开就行   
+    planner_manager_->topo_graph_->removeConnectNode(ed_->next_goal_node_);
     for (auto &edge : edge2insert) {
+      // goal 端 对每个例邻居做连接
       ed_->next_goal_node_->neighbors_.insert(edge.first.second);
-      ed_->next_goal_node_->paths_.insert({edge.first.second, edge.second});
+      ed_->next_goal_node_->paths_.insert({edge.first.second, edge.second});  // 创建路径
       double cost;
       planner_manager_->topo_graph_->parallel_bubble_astar_->calculatePathCost(
           edge.second, cost);
-      ed_->next_goal_node_->weight_[edge.first.second] = cost;
+      ed_->next_goal_node_->weight_[edge.first.second] = cost;  // 放置边成本
+      // 邻居也做
       auto nbr = edge.first.second;
       nbr->neighbors_.insert(ed_->next_goal_node_);
       nbr->weight_[ed_->next_goal_node_] = cost;
@@ -502,6 +515,6 @@ void FastExplorationManager::updateGoalNode() {
       std::reverse(path.begin(), path.end());
       nbr->paths_[ed_->next_goal_node_] = path;
     }
-  }
+  }  // 如果给的目标点是无效的就继续使用旧的目标点
 }
 } // namespace fast_planner

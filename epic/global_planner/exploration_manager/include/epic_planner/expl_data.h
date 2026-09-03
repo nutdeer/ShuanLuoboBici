@@ -7,12 +7,17 @@
 using Eigen::Vector3d;
 using std::vector;
 using namespace std;
-
+// 代码基于 fast-planner 开发,所以命名空间和各个模块保留了原来的命名方式
 namespace fast_planner {
 struct FSMData {
   // FSM data
   bool trigger_, have_odom_, static_state_, emergency_replan_,
       use_bubble_a_star_, half_resolution;
+  // back home
+  bool back_home_active_, home_pos_valid_;
+  Eigen::Vector3f home_pos_;
+  ros::Time finish_start_time_;
+
   vector<string> state_str_;
   int bb_astar_fail_cnt_, fast_search_fial_cnt_;
   double bb_astar_time_out, fast_search_time_out;

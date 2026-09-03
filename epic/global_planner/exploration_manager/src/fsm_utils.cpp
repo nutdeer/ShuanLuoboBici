@@ -26,24 +26,34 @@ void FastExplorationFSM::pubState() {
 }
 
 // 接口函数 探索最佳视点已经确定 调用一次路径规划
-int FastExplorationFSM::callExplorationPlanner() {
-  // if (planner_manager_->lidar_map_interface_->getDisToOcc(fd_->odom_pos_) < planner_manager_->gcopter_config_->dilateRadiusHard)
-  //   return START_FAIL;
+// 修改了函数逻辑,把回家的代码也加进去
+int FastExplorationFSM::generateTrajctoryPlanner() {
   if (planner_manager_->topo_graph_->odom_node_->neighbors_.empty())
     return START_FAIL;  // 如果返回 这个, FSM 会到 CAUTION , 尝试飞到安全区域 (具体是怎么尝试到安全的? 需要确认)
-  if (expl_manager_->ed_->global_tour_.size() < 2)  // 没有目标点了,只剩下自己位置点了,没前沿点了滚蛋
-    return NO_FRONTIER;
+  
+  const bool is_back_home = fd_->back_home_active_;
+  
+  if (!is_back_home) 
+  {
+    if (expl_manager_->ed_->global_tour_.size() < 2)  // 没有目标点了,只剩下自己位置点了,没前沿点了滚蛋
+      return NO_FRONTIER;
+  }
+  else
+  {
+    expl_manager_->updateGoalNode(fd_->home_pos_);
+  }
 
-  // 如果下一个路径点实际上不安全,就更新拓扑图并返回 FAIL
-  // debug
-  if (planner_manager_->lidar_map_interface_->getDisToOcc(expl_manager_->ed_->next_goal_node_->center_) <
-      planner_manager_->topo_graph_->bubble_min_radius_) { // TODO:
+  const Eigen::Vector3f goal_pos = expl_manager_->ed_->next_goal_node_->center_;
+  if (planner_manager_->lidar_map_interface_->getDisToOcc(goal_pos) <
+      planner_manager_->topo_graph_->bubble_min_radius_)
+  {
     cout << "410:  next goal in occ, update it" << endl;
     updateTopoAndGlobalPath();
     return FAIL;
   }
   vector<Eigen::Vector3f> path_next_goal;
 
+  // 到这里就和探索没什么关系了单纯的路径搜索
   int res = planner_manager_->fast_searcher_->search(planner_manager_->topo_graph_->odom_node_,
                                                      fd_->odom_vel_,
                                                      expl_manager_->ed_->next_goal_node_, //最佳探索点
@@ -123,6 +133,10 @@ void FastExplorationFSM::triggerCallback(const geometry_msgs::PoseStamped::Const
       cout << "Triggered! START EXPLORATION !" << endl;
       total_time_ = ros::Time::now().toSec();
       transitState(PLAN_TRAJ, "triggerCallback");
+
+      // 开始探索的同时记录起飞的位置
+      fd_->home_pos_ = fd_->odom_pos_;
+      fd_->home_pos_valid_ = true;
     }
     trigger_count++;    
     return;
@@ -175,13 +189,27 @@ void FastExplorationFSM::CloudOdomCallback(const sensor_msgs::PointCloud2ConstPt
 
 // 状态转换与日志打印
 void FastExplorationFSM::transitState(EXPL_STATE new_state, string pos_call, bool red) {
+  if(new_state == FINISH && state_ != FINISH)
+  {
+    fd_->finish_start_time_ = ros::Time::now();
+  }
   int pre_s = int(state_);
   state_ = new_state;
-  if (!red) {
-    cout << "\033[32m[" + pos_call + "]\033[0m: from " + fd_->state_str_[pre_s] + " to " + fd_->state_str_[int(new_state)] << endl;
-  } else {
-    cout << "\033[31m[" + pos_call + "]\033[0m: from " + fd_->state_str_[pre_s] + " to " + fd_->state_str_[int(new_state)] << endl;
+
+  std::string message =
+    "[" + pos_call + "]: from " +
+    fd_->state_str_[pre_s] + " to " +
+    fd_->state_str_[int(new_state)];
+
+  if (red)
+  {
+    ROS_ERROR_STREAM(message);
   }
+  else
+  {
+    ROS_INFO_STREAM(message);
+  }
+  // 注意没结流,要是反复的变这里得节下流
 }
 
 // 停止轨迹

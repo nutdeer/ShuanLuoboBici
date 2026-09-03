@@ -56,6 +56,7 @@ public:
   void surfaceFrtCalllback(const ros::TimerEvent &e);
   void goalCallback(const geometry_msgs::PoseStampedConstPtr &msg);
   void updateGoalNode();
+  void updateGoalNode(const Eigen::Vector3f &goal);
 };
 
 } // namespace fast_planner

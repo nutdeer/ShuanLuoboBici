@@ -935,6 +935,7 @@ void TopoGraph::updateOdomNode(Eigen::Vector3f &odom_pos, float &yaw) {
 }
 
 // 从拓扑图删除单个节点
+// 用 node->center_ 找 RegionNode 桶 然后遍历邻居把双向边删除
 void TopoGraph::removeNode(TopoNode::Ptr &node) {
   if (node == nullptr)
     return;
@@ -946,13 +947,23 @@ void TopoGraph::removeNode(TopoNode::Ptr &node) {
   }
   region_node->topo_nodes_.erase(node);
 
+  removeConnectNode(node);
+}
+
+// 只断开节点的双向连接，不访问 RegionNode
+void TopoGraph::removeConnectNode(TopoNode::Ptr &node) {
+  if (node == nullptr)
+    return;
+  
   // nbrs
-  for (auto &nbr : node->neighbors_) {
+  for (const auto &nbr : node->neighbors_)
+  {
     nbr->neighbors_.erase(node);
     nbr->paths_.erase(node);
     nbr->weight_.erase(node);
     nbr->unreachable_nbrs_.erase(node);
   }
+  // self
   node->unreachable_nbrs_.clear();
   node->neighbors_.clear();
   node->weight_.clear();

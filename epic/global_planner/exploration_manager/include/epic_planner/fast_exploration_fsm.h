@@ -40,7 +40,15 @@ class PlanningVisualization;
 struct FSMParam;
 struct FSMData;
 
-enum EXPL_STATE { INIT, WAIT_TRIGGER, TAKE_OFF, PLAN_TRAJ, CAUTION, EXEC_TRAJ, FINISH, LAND };
+enum EXPL_STATE { 
+  INIT, 
+  WAIT_TRIGGER, 
+  TAKE_OFF, PLAN_TRAJ, 
+  CAUTION, 
+  EXEC_TRAJ, 
+  FINISH,
+  LAND
+};
 
 class FastExplorationFSM {
 private:
@@ -73,7 +81,7 @@ private:
   void CloudOdomCallback(const sensor_msgs::PointCloud2ConstPtr &msg, const nav_msgs::Odometry::ConstPtr &odom_);
 
   /* helper functions */
-  int callExplorationPlanner();
+  int generateTrajctoryPlanner();
   void transitState(EXPL_STATE new_state, string pos_call, bool red = false);
   void battaryCallback(const sensor_msgs::BatteryStateConstPtr &msg);
   /* ROS functions */
