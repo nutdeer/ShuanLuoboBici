@@ -1,0 +1,35 @@
+<launch>
+  <!-- point cloud input/output config -->
+  <arg name="input_cloud_topic"  default="/cloud_registered"/>
+  <arg name="output_cloud_topic" default="/cloud_registered_web"/>
+  <arg name="voxel_size"   default="0.2"/>
+  <arg name="cloud_publish_rate" default="5.0"/>
+
+  <!-- odom相关 -->
+  <arg name="input_odom_topic"  default="/Odometry_high_freq"/>
+  <arg name="output_odom_topic" default="/Odometry_web"/>
+  <arg name="odom_publish_rate" default="30.0"/>
+
+  <arg name="websocket_port" default="9090"/>
+
+  <!-- downsampled cloud for the web client -->
+  <!-- type="cloud_web_filter"：要运行的可执行文件名称 -->
+  <!-- name="cloud_web_filter"：运行时的 ROS 节点名称 -->
+  <node pkg="web_data_adapter" type="cloud_filter" name="cloud_web_filter" output="screen">
+    <param name="input_topic"  value="$(arg input_cloud_topic)"/>
+    <param name="output_topic" value="$(arg output_cloud_topic)"/>
+    <param name="voxel_size"   value="$(arg voxel_size)"/>
+    <param name="publish_rate" value="$(arg cloud_publish_rate)"/>
+  </node>
+
+  <node pkg="web_data_adapter" type="odom_filter" name="odom_web_filter" output="screen">
+    <param name="input_topic"  value="$(arg input_odom_topic)"/>
+    <param name="output_topic" value="$(arg output_odom_topic)"/>
+    <param name="publish_rate" value="$(arg odom_publish_rate)"/>
+  </node>
+
+  <!-- websocket bridge for the browser -->
+  <node pkg="rosbridge_server" type="rosbridge_websocket" name="rosbridge_websocket" output="screen">
+    <param name="port" value="$(arg websocket_port)"/>
+  </node>
+</launch>
