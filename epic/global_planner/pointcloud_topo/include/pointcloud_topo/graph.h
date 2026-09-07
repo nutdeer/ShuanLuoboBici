@@ -164,6 +164,8 @@ public:
   Eigen::Vector3i region_idx_;                // 这个块在 3d网格的索引 (i,j,k)
   int his_odom_id_;                           // -1 飞机还没来过这个块
   unordered_set<TopoNode::Ptr> topo_nodes_;   // 块里的拓扑节点集合
+  // 该区域最近一次递归填充产生的全部气泡，用于调试和可视化。
+  vector<BubbleNode::Ptr> coverage_bubbles_;
 };
 
 class BubbleUnionSet {

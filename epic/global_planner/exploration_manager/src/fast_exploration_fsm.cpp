@@ -451,6 +451,8 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
   
   // **可视化及后续状态转换**
   planner_manager_->graph_visualizer_->vizBox(planner_manager_->topo_graph_);
+  planner_manager_->graph_visualizer_->vizCoverageBubbles(
+      planner_manager_->topo_graph_);
   if (expl_manager_->ep_->view_graph_)
     planner_manager_->graph_visualizer_->vizGraph(planner_manager_->topo_graph_);
   std_msgs::Float32 time_cost;

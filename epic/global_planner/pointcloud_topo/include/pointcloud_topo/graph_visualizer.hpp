@@ -31,13 +31,59 @@ enum VizColor {
 class GraphVisualizer {
 public:
   ros::NodeHandle nh_;
-  ros::Publisher viz_graph_pub_, global_tour_pub_;
+  ros::Publisher viz_graph_pub_, global_tour_pub_, coverage_bubbles_pub_;
   typedef std::shared_ptr<GraphVisualizer> Ptr;
 
   void init(ros::NodeHandle &nh) {
     nh_ = nh;
     viz_graph_pub_ = nh_.advertise<MarkerArray>("/viz_graph_topic", 5);
     global_tour_pub_ = nh_.advertise<MarkerArray>("/global_tour", 5);
+    coverage_bubbles_pub_ =
+        nh_.advertise<MarkerArray>("/bubble_topo/coverage_bubbles", 1, true);
+  }
+
+  // 显示递归空间填充生成的全部球。不同半径无法使用 SPHERE_LIST，
+  // 因此每个球使用独立 Marker，并在每帧开头清除上次的结果。
+  void inline vizCoverageBubbles(const TopoGraph::Ptr &topo_graph) {
+    MarkerArray bubble_marker_array;
+    Marker clear_marker;
+    clear_marker.action = Marker::DELETEALL;
+    bubble_marker_array.markers.emplace_back(clear_marker);
+
+    int marker_id = 0;
+    std::unordered_set<const BubbleNode *> published_bubbles;
+    for (const auto &[idx, region] : topo_graph->reg_map_idx2ptr_) {
+      if (region == nullptr)
+        continue;
+      for (const auto &bubble : region->coverage_bubbles_) {
+        if (bubble == nullptr || bubble->radius_ <= 0.0 ||
+            !published_bubbles.insert(bubble.get()).second)
+          continue;
+
+        Marker marker;
+        marker.header.frame_id = "world";
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "coverage_bubbles";
+        marker.id = marker_id++;
+        marker.type = Marker::SPHERE;
+        marker.action = Marker::ADD;
+        marker.pose.position.x = bubble->center_.x();
+        marker.pose.position.y = bubble->center_.y();
+        marker.pose.position.z = bubble->center_.z();
+        marker.pose.orientation.w = 1.0;
+        marker.scale.x = marker.scale.y = marker.scale.z =
+            2.0 * bubble->radius_;
+        marker.color.r = 0.1f;
+        marker.color.g = 0.65f;
+        marker.color.b = 1.0f;
+        marker.color.a = 0.16f;
+        bubble_marker_array.markers.emplace_back(std::move(marker));
+      }
+    }
+
+    coverage_bubbles_pub_.publish(bubble_marker_array);
+    ROS_INFO_STREAM_THROTTLE(2.0, "visualized " << marker_id
+                                                  << " coverage bubbles");
   }
 
   void inline static SetColor(const VizColor &color, const float &alpha,

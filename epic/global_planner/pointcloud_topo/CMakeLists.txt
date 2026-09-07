@@ -32,7 +32,7 @@ find_package(PCL REQUIRED COMPONENTS )
 catkin_package(
     INCLUDE_DIRS include
     LIBRARIES pointcloud_topo parallel_bubble_astar
-    CATKIN_DEPENDS roscpp std_msgs lkh_tsp_solver lidar_map
+    CATKIN_DEPENDS roscpp std_msgs visualization_msgs lkh_tsp_solver lidar_map
 )
 
 include_directories(
@@ -68,4 +68,3 @@ target_link_libraries(pointcloud_topo
     OpenMP::OpenMP_CXX
     parallel_bubble_astar
 )
-

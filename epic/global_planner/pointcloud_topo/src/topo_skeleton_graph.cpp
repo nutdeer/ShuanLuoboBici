@@ -828,6 +828,9 @@ void TopoGraph::updateSkeleton() {
         check_pt_flag[i] = true;
     }
     generateBubble(lb, hb, tmp_bubbles, check_pt_flag);
+    // 每个 region 只会被本轮 OpenMP 循环中的一个线程处理。保存本次结果，
+    // 使可视化能够显示所有已更新区域，而不只是随后保留下来的拓扑节点。
+    region_ptr->coverage_bubbles_ = tmp_bubbles;
     BubbleUnionSet::Ptr union_set_ = std::make_shared<BubbleUnionSet>(bubble_min_radius_); // TODO: 这个参数是topo节点2occ的最小距离
     vector<TopoNode::Ptr> new_nodes_region;
     Eigen::Vector3f region_center = (lb + hb) * 0.5;
