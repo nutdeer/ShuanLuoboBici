@@ -12,8 +12,10 @@ Panels:
         - /explore_env1
         - /explore_env1/buffered_cloud1/Autocompute Value Bounds1
         - /topo_graph1/Namespaces1
+        - /LidarCloud1
         - /GlobalMap1
         - /Odometry1
+        - /MarkerArray1
       Splitter Ratio: 0.5931624174118042
     Tree Height: 892
   - Class: rviz/Tool Properties
@@ -378,7 +380,15 @@ Visualization Manager:
         viewpoint_edge: true
       Queue Size: 100
       Value: true
-    - Alpha: 1
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /bubble_topo/coverage_bubbles
+      Name: coverage_bubbles
+      Namespaces:
+        {}
+      Queue Size: 1
+      Value: false
+    - Alpha: 0.5
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 10
@@ -389,7 +399,7 @@ Visualization Manager:
       Class: rviz/PointCloud2
       Color: 255; 255; 255
       Color Transformer: Intensity
-      Decay Time: 0
+      Decay Time: 300
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
@@ -401,7 +411,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.05000000074505806
       Style: Flat Squares
-      Topic: /cloud_registered
+      Topic: /quad0_pcl_render_node/cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -418,7 +428,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -433,7 +443,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Angle Tolerance: 0.10000000149011612
       Class: rviz/Odometry
       Covariance:
@@ -469,6 +479,14 @@ Visualization Manager:
       Topic: /Odometry_high_freq
       Unreliable: false
       Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /bubble_topo/split_boxes
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 46; 52; 54
@@ -488,7 +506,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 30.59316635131836
+      Distance: 26.361459732055664
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -496,17 +514,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.8529064655303955
-        Y: -3.7392756938934326
-        Z: -8.257452464022208e-06
+        X: -2.947807788848877
+        Y: 5.776791572570801
+        Z: -2.4293251044582576e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 5
-      Pitch: 1.3152014017105103
+      Pitch: 0.8747966289520264
       Target Frame: sensor
-      Yaw: 1.8202542066574097
+      Yaw: 0.388423353433609
     Saved:
       - Class: rviz/ThirdPersonFollower
         Distance: 40.93450164794922

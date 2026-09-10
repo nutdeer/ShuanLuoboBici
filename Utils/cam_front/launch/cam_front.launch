@@ -1,0 +1,14 @@
+<launch>
+  <arg name="device" default="/dev/video0" />
+  <arg name="frame_id" default="camera_front" />
+  <arg name="width" default="320" />
+  <arg name="height" default="240" />
+  <arg name="fps" default="30" />
+  <node pkg="cam_front" type="cam_front_node" name="cam_front" output="screen">
+    <param name="device" value="$(arg device)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="width" value="$(arg width)" />
+    <param name="height" value="$(arg height)" />
+    <param name="fps" value="$(arg fps)" />
+  </node>
+</launch>

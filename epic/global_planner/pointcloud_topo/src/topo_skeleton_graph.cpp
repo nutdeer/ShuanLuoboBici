@@ -37,6 +37,12 @@ void TopoGraph::init(ros::NodeHandle &nh, LIOInterface::Ptr &lidar_map, Parallel
   nh.param("bubble_topo/bubble_min_radius", bubble_min_radius_, 0.5);
   nh.param("bubble_topo/frontier_bubble_min_radius", frt_bubble_radius_, 0.5);
   nh.param("bubble_topo/cube_discrete_size", cube_discrete_size, 0.3);
+  nh.param("bubble_topo/viz_split_boxes", viz_split_boxes_, false);
+  nh.param("bubble_topo/viz_split_boxes_show_pruned",
+           viz_split_boxes_show_pruned_, false);
+  nh.param("bubble_topo/viz_split_boxes_max_depth", viz_split_boxes_max_depth_,
+           -1);
+  ROS_INFO_STREAM("bubble_topo/viz_split_boxes = " << viz_split_boxes_);
 
   nh.getParam("parallel_astar/update_connection_timeout", update_connection_timeout);
   nh.getParam("parallel_astar/insert_node_timeout", insert_node_timeout);
@@ -827,7 +833,9 @@ void TopoGraph::updateSkeleton() {
       if (!lidar_map_interface_->IsInBox(pt))
         check_pt_flag[i] = true;
     }
-    generateBubble(lb, hb, tmp_bubbles, check_pt_flag);
+    region_ptr->coverage_boxes_.clear();
+    generateBubble(lb, hb, tmp_bubbles, check_pt_flag, 0,
+                   viz_split_boxes_ ? &region_ptr->coverage_boxes_ : nullptr);
     // 每个 region 只会被本轮 OpenMP 循环中的一个线程处理。保存本次结果，
     // 使可视化能够显示所有已更新区域，而不只是随后保留下来的拓扑节点。
     region_ptr->coverage_bubbles_ = tmp_bubbles;

@@ -31,7 +31,8 @@ enum VizColor {
 class GraphVisualizer {
 public:
   ros::NodeHandle nh_;
-  ros::Publisher viz_graph_pub_, global_tour_pub_, coverage_bubbles_pub_;
+  ros::Publisher viz_graph_pub_, global_tour_pub_, coverage_bubbles_pub_,
+      split_boxes_pub_;
   typedef std::shared_ptr<GraphVisualizer> Ptr;
 
   void init(ros::NodeHandle &nh) {
@@ -40,6 +41,8 @@ public:
     global_tour_pub_ = nh_.advertise<MarkerArray>("/global_tour", 5);
     coverage_bubbles_pub_ =
         nh_.advertise<MarkerArray>("/bubble_topo/coverage_bubbles", 1, true);
+    split_boxes_pub_ =
+        nh_.advertise<MarkerArray>("/bubble_topo/split_boxes", 1, true);
   }
 
   // 显示递归空间填充生成的全部球。不同半径无法使用 SPHERE_LIST，
@@ -84,6 +87,76 @@ public:
     coverage_bubbles_pub_.publish(bubble_marker_array);
     ROS_INFO_STREAM_THROTTLE(2.0, "visualized " << marker_id
                                                   << " coverage bubbles");
+  }
+
+  // 显示递归盒划分过程中测试过的全部盒子。每个递归深度使用独立
+  // namespace（split_box_d0/d1/...），可在 RViz 中逐层开关，对照父盒
+  // 查看每次二分产生的子盒位置。颜色按结局区分：
+  // 绿=生成球，红=中心净空不足触发二分，灰=被剪枝（已覆盖/出界/过小）。
+  void inline vizSplitBoxes(const TopoGraph::Ptr &topo_graph) {
+    MarkerArray box_marker_array;
+    Marker clear_marker;
+    clear_marker.action = Marker::DELETEALL;
+    box_marker_array.markers.emplace_back(clear_marker);
+
+    std::unordered_map<int, int> depth_id_counter;
+    int text_id = 0;
+    for (const auto &[idx, region] : topo_graph->reg_map_idx2ptr_) {
+      if (region == nullptr)
+        continue;
+      for (const auto &box : region->coverage_boxes_) {
+        VizColor color;
+        if (box.outcome == 2)
+          color = VizColor::GREEN;
+        else if (box.outcome == 1)
+          color = VizColor::RED;
+        else
+          color = VizColor::WHITE;
+
+        int id = depth_id_counter[box.depth]++;
+        std::string depth_ns = "split_box_d" + to_string(box.depth);
+
+        Marker box_marker;
+        this->SetMarker(color, depth_ns, 0.03f, 0.9f, box_marker, 1.0f);
+        box_marker.id = id;
+        Eigen::Vector3f lb = box.low_bd, hb = box.high_bd;
+        vizBox(lb, hb, box_marker);
+        box_marker_array.markers.emplace_back(std::move(box_marker));
+
+        if (box.clearance >= 0.0f) {
+          Marker center_marker;
+          this->SetMarker(color, depth_ns + "_center", 0.08f, 0.9f,
+                          center_marker, 1.0f);
+          center_marker.id = id;
+          center_marker.type = Marker::SPHERE;
+          center_marker.pose.position.x = box.center.x();
+          center_marker.pose.position.y = box.center.y();
+          center_marker.pose.position.z = box.center.z();
+          box_marker_array.markers.emplace_back(std::move(center_marker));
+        }
+
+        if (box.outcome == 1) {
+          // 净空不足被二分的盒：标出中心净空数值，直接读出门框处净空
+          Marker text_marker;
+          this->SetMarker(VizColor::YELLOW, "split_fail_clearance", 0.15f,
+                          1.0f, text_marker, 1.0f);
+          text_marker.id = text_id++;
+          text_marker.type = Marker::TEXT_VIEW_FACING;
+          text_marker.pose.position.x = box.center.x();
+          text_marker.pose.position.y = box.center.y();
+          text_marker.pose.position.z = box.center.z() + 0.1;
+          char buf[32];
+          snprintf(buf, sizeof(buf), "%.2f", box.clearance);
+          text_marker.text = buf;
+          box_marker_array.markers.emplace_back(std::move(text_marker));
+        }
+      }
+    }
+
+    split_boxes_pub_.publish(box_marker_array);
+    ROS_INFO_STREAM_THROTTLE(2.0, "visualized split boxes with "
+                                      << depth_id_counter.size()
+                                      << " depth levels");
   }
 
   void inline static SetColor(const VizColor &color, const float &alpha,

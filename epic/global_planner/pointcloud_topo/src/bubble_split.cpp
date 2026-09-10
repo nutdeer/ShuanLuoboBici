@@ -12,20 +12,37 @@
 void TopoGraph::generateBubble(const Eigen::Vector3f &low_bd,
                                const Eigen::Vector3f &high_bd,
                                vector<BubbleNode::Ptr> &bubble_node_vec,
-                               vector<bool> &check_flags) {
+                               vector<bool> &check_flags, int depth,
+                               vector<DebugBox> *dbg_boxes) {
   ros::Time start = ros::Time::now();
   // 地图边界范围有效性检查
   Eigen::Vector3f center = (low_bd + high_bd) / 2.0;
   Eigen::Vector3f bd_size = high_bd - low_bd;
-  if (!lidar_map_interface_->IsInBox(center))
+  DebugBox dbg_box;
+  if (dbg_boxes) {
+    dbg_box.low_bd = low_bd;
+    dbg_box.high_bd = high_bd;
+    dbg_box.center = center;
+    dbg_box.depth = depth;
+  }
+  if (!lidar_map_interface_->IsInBox(center)) {
+    if (dbg_boxes)
+      dbg_boxes->push_back(dbg_box);
     return;
+  }
 
   if (low_bd[0] >= high_bd[0] || low_bd[1] >= high_bd[1] ||
-      low_bd[2] >= high_bd[2])
+      low_bd[2] >= high_bd[2]) {
+    if (dbg_boxes)
+      dbg_boxes->push_back(dbg_box);
     return;
+  }
 
-  if (bd_size.x() < min_x_ && bd_size.y() < min_y_ && bd_size.z() < min_z_)
+  if (bd_size.x() < min_x_ && bd_size.y() < min_y_ && bd_size.z() < min_z_) {
+    if (dbg_boxes)
+      dbg_boxes->push_back(dbg_box);
     return;
+  }
 
   Eigen::Vector3i region_idx;
   getIndex(center, region_idx);
@@ -52,17 +69,26 @@ void TopoGraph::generateBubble(const Eigen::Vector3f &low_bd,
     all_covered = false;
     break;
   }
-  if (all_covered)
+  if (all_covered) {
+    if (dbg_boxes)
+      dbg_boxes->push_back(dbg_box);
     return;
+  }
   double dis2occ = lidar_map_interface_->getDisToOcc(center);
+  dbg_box.clearance = dis2occ;
 
   if (dis2occ < bubble_min_radius_) {
     // 小到没有必要生成球，给你换一个位置吧
-    splitCubeBubbleGeneration(low_bd, high_bd, bubble_node_vec, check_flags);
+    dbg_box.outcome = 1;
+    if (dbg_boxes)
+      dbg_boxes->push_back(dbg_box);
+    splitCubeBubbleGeneration(low_bd, high_bd, bubble_node_vec, check_flags,
+                              depth + 1, dbg_boxes);
     return;
   }
 
   //生成气泡
+  dbg_box.outcome = 2;
   std::vector<int> radius_indices;
   std::vector<float> radius_distances;
   pcl::PointXYZ searchPoint(center.x(), center.y(), center.z());
@@ -76,21 +102,29 @@ void TopoGraph::generateBubble(const Eigen::Vector3f &low_bd,
 
   if (bubble_node->radius_ > (high_bd - low_bd).norm() / 2.0) {
     // 说明已经覆盖了全空间，直接return
+    if (dbg_boxes)
+      dbg_boxes->push_back(dbg_box);
     return;
   }
 
   if (bubble_node->radius_ < bubble_min_radius_) {
-    splitCubeBubbleGeneration(low_bd, high_bd, bubble_node_vec, check_flags);
+    if (dbg_boxes)
+      dbg_boxes->push_back(dbg_box);
+    splitCubeBubbleGeneration(low_bd, high_bd, bubble_node_vec, check_flags,
+                              depth + 1, dbg_boxes);
     return;
   }
+  if (dbg_boxes)
+    dbg_boxes->push_back(dbg_box);
   supplementCubeBubbleGeneration(low_bd, high_bd, bubble_node_vec, check_flags,
-                                 bubble_node);
+                                 bubble_node, depth + 1, dbg_boxes);
 }
 
 // 空间分裂 将大空间拆小 实现更全面的覆盖
 void TopoGraph::splitCubeBubbleGeneration(
     const Eigen::Vector3f &low_bd, const Eigen::Vector3f &high_bd,
-    vector<BubbleNode::Ptr> &bubble_node_vec, vector<bool> &check_flags) {
+    vector<BubbleNode::Ptr> &bubble_node_vec, vector<bool> &check_flags,
+    int depth, vector<DebugBox> *dbg_boxes) {
   double bd_size_x = high_bd[0] - low_bd[0];
   double bd_size_y = high_bd[1] - low_bd[1];
   double bd_size_z = high_bd[2] - low_bd[2];
@@ -108,17 +142,18 @@ void TopoGraph::splitCubeBubbleGeneration(
             low_bd + Eigen::Vector3f(x_step * i, y_step * j, z_step * k),
             low_bd + Eigen::Vector3f(x_step * (i + 1), y_step * (j + 1),
                                      z_step * (k + 1)),
-            bubble_node_vec, check_flags);
+            bubble_node_vec, check_flags, depth, dbg_boxes);
       }
     }
   }
 }
 
-// 气泡补充实现 在26个区域内添加气泡 
+// 气泡补充实现 在26个区域内添加气泡
 void TopoGraph::supplementCubeBubbleGeneration(
     const Eigen::Vector3f &low_bd, const Eigen::Vector3f &high_bd,
     vector<BubbleNode::Ptr> &bubble_node_vec, vector<bool> &check_flags,
-    const BubbleNode::Ptr &bubble_node) {
+    const BubbleNode::Ptr &bubble_node, int depth,
+    vector<DebugBox> *dbg_boxes) {
   bubble_node_vec.push_back(bubble_node);
   // step2 计算出26个邻居长方体
   Eigen::Vector3f outer_000 = low_bd;
@@ -178,87 +213,113 @@ void TopoGraph::supplementCubeBubbleGeneration(
   Eigen::Vector3f low_bd_tmp, high_bd_tmp;
   low_bd_tmp << outer_000.x(), outer_000.y(), outer_000.z();
   high_bd_tmp << inner_000.x(), inner_000.y(), inner_000.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_000.x(), outer_000.y(), outer_000.z();
   high_bd_tmp << inner_100.x(), inner_100.y(), inner_100.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_100.x(), outer_100.y(), outer_100.z();
   high_bd_tmp << outer_100.x(), inner_100.y(), inner_100.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << outer_000.x(), inner_000.y(), outer_000.z();
   high_bd_tmp << inner_010.x(), inner_010.y(), inner_010.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_000.x(), inner_000.y(), outer_000.z();
   high_bd_tmp << inner_110.x(), inner_110.y(), inner_110.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_100.x(), inner_100.y(), outer_100.z();
   high_bd_tmp << outer_110.x(), inner_110.y(), inner_110.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << outer_010.x(), inner_010.y(), outer_010.z();
   high_bd_tmp << inner_010.x(), outer_010.y(), inner_010.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_010.x(), inner_010.y(), outer_010.z();
   high_bd_tmp << inner_110.x(), outer_110.y(), inner_110.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_110.x(), inner_110.y(), outer_110.z();
   high_bd_tmp << outer_110.x(), outer_110.y(), inner_110.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   // 第二层: 8个
 
   low_bd_tmp << outer_000.x(), outer_000.y(), inner_000.z();
   high_bd_tmp << inner_000.x(), inner_000.y(), inner_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_000.x(), outer_000.y(), inner_000.z();
   high_bd_tmp << inner_100.x(), inner_100.y(), inner_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_100.x(), outer_100.y(), inner_000.z();
   high_bd_tmp << outer_100.x(), inner_100.y(), inner_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << outer_000.x(), inner_000.y(), inner_000.z();
   high_bd_tmp << inner_010.x(), inner_010.y(), inner_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   // low_bd_tmp << inner_000.x(), inner_000.y(), outer_000.z();
   // high_bd_tmp << inner_110.x(), inner_110.y(), inner_110.z();
   // generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec);
   low_bd_tmp << inner_100.x(), inner_100.y(), inner_000.z();
   high_bd_tmp << outer_110.x(), inner_110.y(), inner_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << outer_010.x(), inner_010.y(), inner_000.z();
   high_bd_tmp << inner_010.x(), outer_010.y(), inner_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_010.x(), inner_010.y(), inner_000.z();
   high_bd_tmp << inner_110.x(), outer_110.y(), inner_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_110.x(), inner_110.y(), inner_000.z();
   high_bd_tmp << outer_110.x(), outer_110.y(), inner_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
 
   // 第三层:9个
   low_bd_tmp << outer_000.x(), outer_000.y(), inner_001.z();
   high_bd_tmp << inner_000.x(), inner_000.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_000.x(), outer_000.y(), inner_001.z();
   high_bd_tmp << inner_100.x(), inner_100.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_100.x(), outer_100.y(), inner_001.z();
   high_bd_tmp << outer_100.x(), inner_100.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << outer_000.x(), inner_000.y(), inner_001.z();
   high_bd_tmp << inner_010.x(), inner_010.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_000.x(), inner_000.y(), inner_001.z();
   high_bd_tmp << inner_110.x(), inner_110.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_100.x(), inner_100.y(), inner_001.z();
   high_bd_tmp << outer_110.x(), inner_110.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << outer_010.x(), inner_010.y(), inner_001.z();
   high_bd_tmp << inner_010.x(), outer_010.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_010.x(), inner_010.y(), inner_001.z();
   high_bd_tmp << inner_110.x(), outer_110.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
   low_bd_tmp << inner_110.x(), inner_110.y(), inner_001.z();
   high_bd_tmp << outer_110.x(), outer_110.y(), outer_001.z();
-  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags);
+  generateBubble(low_bd_tmp, high_bd_tmp, bubble_node_vec, check_flags, depth,
+                 dbg_boxes);
 }

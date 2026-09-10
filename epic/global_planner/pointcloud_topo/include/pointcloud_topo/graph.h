@@ -105,6 +105,14 @@ public:
   Eigen::Vector3f center_;
 };
 
+// 递归盒划分的调试记录：每个被 generateBubble 测试的盒子
+struct DebugBox {
+  Eigen::Vector3f low_bd, high_bd, center;
+  float clearance = -1.0f; // getDisToOcc(center)，未测试为 -1
+  int depth = 0;           // 递归深度，region 根盒为 0
+  int outcome = 0;         // 0=剪枝 1=净空不足触发分裂 2=生成球
+};
+
 class TopoNode {
 public:
   typedef std::shared_ptr<TopoNode> Ptr;
@@ -166,6 +174,8 @@ public:
   unordered_set<TopoNode::Ptr> topo_nodes_;   // 块里的拓扑节点集合
   // 该区域最近一次递归填充产生的全部气泡，用于调试和可视化。
   vector<BubbleNode::Ptr> coverage_bubbles_;
+  // 该区域最近一次递归填充测试过的全部盒子，用于调试和可视化。
+  vector<DebugBox> coverage_boxes_;
 };
 
 class BubbleUnionSet {
@@ -214,6 +224,9 @@ public:
   int x_len, y_len, z_len;                                              // 分区数量
   double max_radius, cube_discrete_size;
   bool view_graph_;
+  bool viz_split_boxes_ = false;          // 记录并可视化递归盒划分
+  bool viz_split_boxes_show_pruned_ = false; // 是否显示被剪枝(未测中心)的盒
+  int viz_split_boxes_max_depth_ = -1;    // 只显示到该递归深度，-1 显示全部
   int getBoxId(const Eigen::Vector3f &pt);
   vector<Eigen::Vector3i> update_idx_vec_; //
 
@@ -262,11 +275,11 @@ private:
   bool hasOverlapWithBox(const Eigen::Vector3f &low_bd, const Eigen::Vector3f &high_bd);
 
   void generateBubble(const Eigen::Vector3f &low_bd, const Eigen::Vector3f &high_bd, vector<BubbleNode::Ptr> &bubble_node_vec,
-                      vector<bool> &check_flags);
+                      vector<bool> &check_flags, int depth = 0, vector<DebugBox> *dbg_boxes = nullptr);
   void splitCubeBubbleGeneration(const Eigen::Vector3f &low_bd, const Eigen::Vector3f &high_bd, vector<BubbleNode::Ptr> &bubble_node_vec,
-                                 vector<bool> &check_flags);
+                                 vector<bool> &check_flags, int depth, vector<DebugBox> *dbg_boxes);
   void supplementCubeBubbleGeneration(const Eigen::Vector3f &low_bd, const Eigen::Vector3f &high_bd, vector<BubbleNode::Ptr> &bubble_node_vec,
-                                      vector<bool> &check_flags, const BubbleNode::Ptr &bubble_node);
+                                      vector<bool> &check_flags, const BubbleNode::Ptr &bubble_node, int depth, vector<DebugBox> *dbg_boxes);
   bool isCubeCoveredByBubble(const Eigen::Vector3f &low_bd, const Eigen::Vector3f &high_bd, const vector<BubbleNode::Ptr> &bubble_node_vec);
 
   int searchPathWithBoundary(const Eigen::Vector3f &start, const Eigen::Vector3f &end, double &time_out, vector<Eigen::Vector3f> &path);

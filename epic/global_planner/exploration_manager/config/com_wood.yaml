@@ -20,6 +20,7 @@ bubble_topo/init_region_size_y: 3.3
 bubble_topo/init_region_size_z: 2.0
 bubble_topo/cube_discrete_size: 0.2   # 拓扑图球采样,需要检查每个采样点是否安全 拓扑地图的栅格尺寸
 bubble_topo/odom_node_distance: 3.0   #移动多少距离后，才更新拓扑
+bubble_topo/viz_split_boxes: true     #可视化递归盒划分(调试用，/bubble_topo/split_boxes)
 bubble_astar/safe_distance: 0.31      #拓扑气泡安全距离
 # map param
 max_update_region_num: 100          #没用
