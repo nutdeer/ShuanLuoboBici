@@ -65,7 +65,7 @@ DilateRadiusSoft: 0.6 # minco threshold 软约束
 DilateRadiusHard: 0.28 # collision check threshold 硬约束
 EnableSfcRawCheck: false # 调试：全量 raw 侵入检查
 MaxCorridorSize: 3.5
-MaxVelMag: 2.0    #最大速度
+MaxVelMag: 1.2    #最大速度
 maxBdrMag: 10000.0
 MaxTiltAngle: 0.5 # 最大飞行姿态角度 60°:1.0472 45°:0.7854 30°:0.5236 10°:0.1745
 MinThrust: 15.0   #最小推力
@@ -87,3 +87,5 @@ RelCostTol: 1.0e-6
 yaw_max_vel: 1.0    #最大偏航速度
 yaw_rho_vis: 10000.0
 yaw_time_fwd: 3.0
+
+bubble_topo/viz_split_boxes: false
