@@ -349,6 +349,7 @@ void PX4CtrlFSM::process()
 	}
 
 	// STEP5: Detect if the drone has landed
+	// 这是不断会判断自己是不是降落了的
 	land_detector(state, des, odom_data);
 
 	// STEP6: Clear flags beyound their lifetime
