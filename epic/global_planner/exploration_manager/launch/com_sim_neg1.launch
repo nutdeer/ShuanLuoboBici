@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!--
+  com_sim_neg1 top-level entry.
+  Planner parameters from config/com_sim_neg1.yaml (copied from
+  tmp_at_feiji_rigo.yaml, real aircraft rigo, topics virtualized for sim).
+  Map and spawn point come from the com_wood environment.
+-->
+<launch>
+  <arg name="map_name" value="com_sim_neg1" />
+  <arg name="config_file" default="$(arg map_name).yaml" />
+
+  <include file="$(find epic_planner)/launch/algorithm.xml">
+    <arg name="config_file" value="$(arg config_file)" />
+  </include>
+
+  <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
+    <remap from="/position_cmd" to="/planning/pos_cmd" />
+  </node>
+
+  <include file="$(find epic_planner)/launch/simulation_$(arg map_name).launch"/>
+
+</launch>

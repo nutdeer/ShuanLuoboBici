@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+  fail_neg1 top-level entry.
+  Based on feiji_code/epic/.../launch/rigo.launch (real aircraft), with the
+  simulation include enabled and topics virtualized in fail_neg1.yaml.
+-->
+<launch>
+  <arg name="map_name" value="fail_neg1" />
+  <arg name="config_file" default="$(arg map_name).yaml" />
+
+  <include file="$(find epic_planner)/launch/algorithm.xml">
+    <arg name="config_file" value="$(arg config_file)" />
+  </include>
+
+  <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
+    <remap from="/position_cmd" to="/planning/pos_cmd" />
+  </node>
+
+  <include file="$(find epic_planner)/launch/simulation_$(arg map_name).launch"/>
+
+</launch>

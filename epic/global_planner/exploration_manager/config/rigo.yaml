@@ -40,7 +40,7 @@ FrontierManager/good_observation_force_trust_length: 4.0  #强制信任的观测
 FrontierManager/good_observation_trust_length: 12.0
 FrontierManager/update_length: 15.0 # 比trust_length长一点就行，多了没用
 FrontierManager/cluster_max_size: 7.5
-FrontierManager/cluster_min_size: 2.0
+FrontierManager/cluster_min_size: 2.0   # 这个是cluster 最小尺寸,如果比这个还小即使内部有前沿点也不会生成视觉点 zwx (取出簇 aabb 中最大的那个)
 FrontierManager/cluster_min_radius: 1.0 # DBSCAN 判断邻居的阈值
 FrontierManager/cluster_direction_radius: -0.0 # cos(theta) > cluster_direction_radius
 FrontierManager/cluster_minmum_point_num: 2

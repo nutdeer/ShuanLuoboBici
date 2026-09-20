@@ -963,7 +963,7 @@ void FrontierManager::compute_cluster_info(
   if ((cluster->box_max_ - cluster->box_min_).maxCoeff() <
       frtp_.cluster_min_size_)
     cluster->is_dormant_ = true;
-  if (cluster->cells_.size() < frtp_.cluster_min_size_)
+  if (cluster->cells_.size() < frtp_.cluster_minmum_point_num_)
     cluster->is_dormant_ = true;
   cluster->is_new_cluster_ = true;
 }
