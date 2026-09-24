@@ -1,5 +1,0 @@
-PROBLEM_FILE = /home/reallab_zwx/TEST_EPIC_C/src/epic/global_planner/utils/lkh_tsp_solver/resource/single.tsp
-GAIN23 = NO
-MOVE_TYPE = 2
-OUTPUT_TOUR_FILE =/home/reallab_zwx/TEST_EPIC_C/src/epic/global_planner/utils/lkh_tsp_solver/resource/single.txt
-RUNS = 10

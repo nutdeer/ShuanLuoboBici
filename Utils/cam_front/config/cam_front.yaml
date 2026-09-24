@@ -1,0 +1,16 @@
+device: /dev/video0
+frame_id: camera_front
+
+# 相机采集分辨率
+# 必须在相机支持列表内 v4l2-ctl --list-formats-ext
+capture_width: 640
+capture_height: 480
+fourcc: MJPG
+
+# 发布话题 resize 输出
+width: 320
+height: 240
+fps: 30
+
+# true 发布 mono8 黑白,false 发布 bgr8 彩色
+mono: true
