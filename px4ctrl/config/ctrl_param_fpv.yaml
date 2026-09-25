@@ -66,3 +66,9 @@ msg_timeout:
     cmd:  0.5
     imu:  0.5
     bat:  0.5
+
+battery_display: # Bottom status bar + dedicated battery .log (display only, no control impact)
+    bottom_bar_enable: true # Pinned battery bar at the terminal bottom; auto-off when stdout is not a TTY
+    log_enable: true        # Append one line per second to a dedicated battery log file
+    log_dir: ""             # Empty = $HOME/.ros/px4ctrl_battery
+    bar_width: 20           # Number of cells in the battery gauge bar

@@ -1,5 +1,6 @@
 #include <ros/ros.h>
 #include "PX4CtrlFSM.h"
+#include "battery_display.h"
 #include <signal.h>
 
 void mySigintHandler(int sig)
@@ -91,6 +92,11 @@ int main(int argc, char *argv[])
     fsm.reboot_FCU_srv = nh.serviceClient<mavros_msgs::CommandLong>("/mavros/cmd/command");
 
     ros::Duration(0.5).sleep();
+
+    BatteryStatusDisplay bat_display(param.bat_disp);
+    ros::Timer battery_display_timer = nh.createTimer(
+        ros::Duration(0.2),
+        [&bat_display, &fsm](const ros::TimerEvent &) { bat_display.spinOnce(fsm.bat_data); });
 
     if (param.takeoff_land.no_RC)
     {

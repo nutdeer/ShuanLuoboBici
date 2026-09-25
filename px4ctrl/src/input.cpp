@@ -277,9 +277,9 @@ void Battery_Data_t::feed(sensor_msgs::BatteryStateConstPtr pMsg)
         voltage += pMsg->cell_voltage[i];
     }
     volt = 0.8 * volt + 0.2 * voltage; // Naive LPF, cell_voltage has a higher frequency
-
-    // volt = 0.8 * volt + 0.2 * pMsg->voltage; // Naive LPF
     percentage = pMsg->percentage;
+    ++sample_count;
+    // volt 可视化的太早数值不对, 加个记数器把原始不对的数据冲掉再可视化 
 
     static ros::Time last_print_t = ros::Time(0);
     if (percentage > 0.05)
@@ -294,7 +294,7 @@ void Battery_Data_t::feed(sensor_msgs::BatteryStateConstPtr pMsg)
     {
         if ((rcv_stamp - last_print_t).toSec() > 1)
         {
-            // ROS_ERROR("[px4ctrl] Dangerous! voltage=%.3f, percentage=%.3f", volt, percentage);
+            ROS_WARN("[px4ctrl] Dangerous! voltage=%.3f, percentage=%.3f", volt, percentage);
             last_print_t = rcv_stamp;
         }
     }

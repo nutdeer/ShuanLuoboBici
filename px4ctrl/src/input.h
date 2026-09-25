@@ -123,6 +123,7 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   double volt{0.0};
   double percentage{0.0};
+  int sample_count{0}; // battery messages received so far
 
   sensor_msgs::BatteryState msg;
   ros::Time rcv_stamp;

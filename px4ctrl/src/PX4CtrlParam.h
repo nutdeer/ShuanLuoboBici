@@ -2,6 +2,7 @@
 #define __PX4CTRLPARAM_H
 
 #include <ros/ros.h>
+#include <string>
 
 class Parameter_t
 {
@@ -56,12 +57,21 @@ public:
 		double speed;
 	};
 
+	struct BatteryDisplay
+	{
+		bool bottom_bar_enable;
+		bool log_enable;
+		std::string log_dir;
+		int bar_width;
+	};
+
 	Gain gain;
 	RotorDrag rt_drag;
 	MsgTimeout msg_timeout;
 	RCReverse rc_reverse;
 	ThrustMapping thr_map;
 	AutoTakeoffLand takeoff_land;
+	BatteryDisplay bat_disp;
 
 	int pose_solver;
 	double mass;
