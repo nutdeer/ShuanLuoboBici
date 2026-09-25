@@ -37,7 +37,7 @@ add_executable(px4ctrl_node
   src/PX4CtrlParam.cpp
   src/controller.cpp
   src/input.cpp
-  src/battery_display.cpp
+  src/display_cli.cpp
 )
 
 add_dependencies(px4ctrl_node quadrotor_msgs)

@@ -57,7 +57,7 @@ public:
 		double speed;
 	};
 
-	struct BatteryDisplay
+	struct DisplayCli
 	{
 		bool bottom_bar_enable;
 		bool log_enable;
@@ -71,7 +71,7 @@ public:
 	RCReverse rc_reverse;
 	ThrustMapping thr_map;
 	AutoTakeoffLand takeoff_land;
-	BatteryDisplay bat_disp;
+	DisplayCli display_cli;
 
 	int pose_solver;
 	double mass;

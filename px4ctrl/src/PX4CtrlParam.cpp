@@ -59,15 +59,15 @@ void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 	read_essential_param(nh, "thrust_model/accurate_thrust_model", thr_map.accurate_thrust_model);
 	read_essential_param(nh, "thrust_model/hover_percentage", thr_map.hover_percentage);
 
-	// Optional battery status display params: nh.param with defaults keeps old yaml files working.
-	nh.param("battery_display/bottom_bar_enable", bat_disp.bottom_bar_enable, true);
-	nh.param("battery_display/log_enable", bat_disp.log_enable, true);
-	nh.param("battery_display/log_dir", bat_disp.log_dir, std::string(""));
-	nh.param("battery_display/bar_width", bat_disp.bar_width, 20);
-	if (bat_disp.bar_width < 1)
+	// Optional bottom status display params: nh.param with defaults keeps old yaml files working.
+	nh.param("display_cli/bottom_bar_enable", display_cli.bottom_bar_enable, true);
+	nh.param("display_cli/log_enable", display_cli.log_enable, true);
+	nh.param("display_cli/log_dir", display_cli.log_dir, std::string(""));
+	nh.param("display_cli/bar_width", display_cli.bar_width, 20);
+	if (display_cli.bar_width < 1)
 	{
-		ROS_WARN("battery_display/bar_width=%d is invalid, clamp to 1.", bat_disp.bar_width);
-		bat_disp.bar_width = 1;
+		ROS_WARN("display_cli/bar_width=%d is invalid, clamp to 1.", display_cli.bar_width);
+		display_cli.bar_width = 1;
 	}
 	
 
