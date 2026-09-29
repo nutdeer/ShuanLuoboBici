@@ -16,10 +16,15 @@
 // Bottom status display: pinned bottom lines on the terminal + dedicated .log
 //
 // Row layout (tty):  rows-1 -> flight time line, rows -> battery bar line.
-// The two lines are independent printf sequences (save cursor -> move -> clear
-// -> print -> restore cursor), so they never scroll and stay pinned after the
-// flight ends; the 5 Hz redraw also heals corruption caused by ROS console
-// output flushing between the sequences.
+//
+// Pinning uses DECSTBM: the terminal scroll region is set to rows 1..rows-2,
+// so ordinary output (ROS console logs etc.) can never overwrite or scroll the
+// two status lines. Each redraw just moves the cursor into the pinned rows,
+// clears and reprints; no cursor save/restore is involved. This deliberately
+// avoids DECSC/DECRC (\0337/\0338): some real-flight terminals (SSH clients,
+// serial consoles) ignore those, which made the lines scroll away inline at
+// 5 Hz and drowned the periodic ROS voltage log. The region is restored in
+// the destructor; if the node is SIGKILLed, run `reset` in the terminal.
 //
 // This runs on a timer thread while the data feeds run on the main thread.
 // spinOnce() is deliberately non-blocking and only reads, so the shared data
@@ -59,7 +64,7 @@ static std::string render_flight_line(double total_sec, bool in_air)
 {
     long s = static_cast<long>(total_sec);
     char buf[64];
-    std::snprintf(buf, sizeof(buf), 
+    std::snprintf(buf, sizeof(buf),
                   "FLY total %02ld:%02ld",
                   (s % 3600) / 60, s % 60);
     return std::string(buf);
@@ -100,7 +105,7 @@ DisplayCLI::DisplayCLI(const Parameter_t::DisplayCli &p)
         log_file_.open(dir + "/" + name);
         if (log_file_.is_open())
         {
-            ROS_INFO_STREAM("[px4ctrl] Battery log: " << dir + "/" + name);
+            ROS_INFO_STREAM("[px4ctrl] Battery log: " << dir + "/" << name);
         }
         else
         {
@@ -112,6 +117,15 @@ DisplayCLI::DisplayCLI(const Parameter_t::DisplayCli &p)
     last_spin_wall_ = now;
     last_render_ = now;
     last_log_ = now;
+}
+
+DisplayCLI::~DisplayCLI()
+{
+    if (tty_)
+    {
+        std::printf("\033[r\033[0m"); // restore the full scroll region
+        std::fflush(stdout);
+    }
 }
 
 void DisplayCLI::updateFlightTime(double dt, const mavros_msgs::ExtendedState &ext,
@@ -203,9 +217,30 @@ void DisplayCLI::spinOnce(Battery_Data_t &bat, ExtendedState_Data_t &ext, State_
         int rows = 24;
         if (ioctl(fileno(stdout), TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0)
             rows = ws.ws_row;
-        const int fly_row = rows > 1 ? rows - 1 : rows;
-        std::printf("\0337\033[%d;1H\033[2K%s\0338", fly_row, fly_line.c_str());
-        std::printf("\0337\033[%d;1H\033[2K%s\0338", rows, bat_line.c_str());
+
+        if (rows > 2)
+        {
+            // Pin the two lines by shrinking the scroll region to everything
+            // above them (re-emitted when the window size changes); then
+            // redraw both lines and park the cursor back inside the region so
+            // subsequent logs scroll without touching the pinned rows.
+            if (rows != region_rows_)
+            {
+                std::printf("\033[1;%dr", rows - 2);
+                region_rows_ = rows;
+            }
+            std::printf("\033[%d;1H\033[2K%s", rows - 1, fly_line.c_str());
+            std::printf("\033[%d;1H\033[2K%s", rows, bat_line.c_str());
+            std::printf("\033[%d;1H", rows - 2);
+        }
+        else if (fly_line != last_fallback_fly_ || bat_line != last_fallback_bat_)
+        {
+            // Terminal too small to pin: print inline, and only on change, so
+            // the 5 Hz redraw does not flood the scrollback.
+            last_fallback_fly_ = fly_line;
+            last_fallback_bat_ = bat_line;
+            std::printf("%s\n%s\n", fly_line.c_str(), bat_line.c_str());
+        }
         std::fflush(stdout);
     }
 

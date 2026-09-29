@@ -3,6 +3,7 @@
 #define __DISPLAY_CLI_H
 
 #include <fstream>
+#include <string>
 
 #include "input.h"
 #include "PX4CtrlParam.h"
@@ -11,6 +12,7 @@ class DisplayCLI
 {
 public:
   explicit DisplayCLI(const Parameter_t::DisplayCli &p);
+  ~DisplayCLI(); // restores the full scroll region on exit
 
   void spinOnce(Battery_Data_t &bat, ExtendedState_Data_t &ext, State_Data_t &fcu_state);
 
@@ -20,6 +22,7 @@ private:
 
   int bar_width_;
   bool tty_;
+  int region_rows_{0}; // terminal rows the scroll region was set for (0 = not set)
 
   std::ofstream log_file_;
 
@@ -31,6 +34,10 @@ private:
   double total_flight_sec_{0.0};
   bool in_air_{false};
   int air_debounce_{0}; // consecutive samples before toggling in_air_
+
+  // Last lines printed in the no-pinning fallback (tiny terminal), to avoid
+  // reflooding stdout at 5 Hz with identical content.
+  std::string last_fallback_fly_, last_fallback_bat_;
 
   ros::WallTime last_spin_wall_;
   ros::WallTime last_render_;
