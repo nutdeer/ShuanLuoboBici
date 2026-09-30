@@ -49,6 +49,14 @@ int main(int argc, char** argv) {
   ros::Rate rate(fps);
   cv::Mat frame;
   while (ros::ok()) {
+    if (image_pub.getNumSubscribers() == 0) {
+      // No subscribers: grab and discard to keep the driver buffer fresh,
+      // skipping MJPG decode, color conversion, resize and serialization.
+      camera.grab();
+      ros::spinOnce();
+      rate.sleep();
+      continue;
+    }
     if (!camera.read(frame) || frame.empty()) {
       ROS_ERROR("Camera read failed");
       break;
