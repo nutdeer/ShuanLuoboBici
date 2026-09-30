@@ -30,8 +30,8 @@ PX4CtrlFSM::PX4CtrlFSM(Parameter_t &param_, LinearControl &controller_) : param(
 	|         ^   |  \  \                |
 	|         |   |   \  \               |
 	|         |	  |    > AUTO_LAND -------
-	|         |   |
-	|         |   v
+	|         |   |  /  / 
+	|         |   v /  /
 	-------- CMD_CTRL
 
 */
@@ -218,9 +218,10 @@ void PX4CtrlFSM::process()
 
 		if (takeoff_land_data.triggered && takeoff_land_data.takeoff_land_cmd == quadrotor_msgs::TakeoffLand::LAND)
 		{
-			ROS_ERROR("[px4ctrl] Reject AUTO_LAND, which must be triggered in AUTO_HOVER. \
-					Stop sending control commands for longer than %fs to let px4ctrl return to AUTO_HOVER first.",
-					  param.msg_timeout.cmd);
+			state = AUTO_LAND;                                                            
+			set_start_pose_for_takeoff_land(odom_data);                                   
+																						
+			ROS_INFO("\033[32m[px4ctrl] CMD_CTRL(L3) --> AUTO_LAND\033[32m"); 
 		}
 
 		fligh_mode_record.data = 3;
