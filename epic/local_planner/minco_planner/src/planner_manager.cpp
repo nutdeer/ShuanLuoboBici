@@ -140,6 +140,7 @@ void FastPlannerManager::initPlanModules(
 
   std::string odom_topic = "/quad_0/lidar_slam/odom";
   nh.getParam("odometry_topic", odom_topic);
+  ROS_WARN("[FastPlannerManager] pos_sub subscribing odom topic: %s", odom_topic.c_str());
   pos_sub = nh.subscribe(odom_topic, 10,
                          &FastPlannerManager::posCallback, this);
   goal_sub = nh.subscribe("/move_base_simple/goal", 10,

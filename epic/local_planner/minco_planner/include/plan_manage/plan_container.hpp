@@ -39,7 +39,7 @@ struct LocalTrajData {
   Eigen::Vector3d start_pos_;
   Eigen::Vector3d curr_pos_;
   Eigen::Vector3d curr_vel_;
-  double curr_yaw_;
+  double curr_yaw_ = 0.0;
   double end_yaw_;
   Trajectory<7> minco_traj_;
   Trajectory<5> minco_yaw_traj_;

@@ -41,7 +41,7 @@ FrontierManager/good_observation_force_trust_length: 4.0  #强制信任的观测
 FrontierManager/good_observation_trust_length: 12.0
 FrontierManager/update_length: 15.0 # 比trust_length长一点就行，多了没用
 FrontierManager/cluster_max_size: 5.0
-FrontierManager/cluster_min_size: 1.5
+FrontierManager/cluster_min_size: 2.0
 FrontierManager/cluster_min_radius: 1.0 # DBSCAN 判断邻居的阈值
 FrontierManager/cluster_direction_radius: -0.0 # cos(theta) > cluster_direction_radius
 FrontierManager/cluster_minmum_point_num: 2
@@ -56,8 +56,10 @@ ViewpointManager/sample_pillar_circle_sample_num: 4
 ViewpointManager/local_tsp_size: 10
 # area 规划区域限制
 box_num: 1
-box_0/down: [-17.4, -8.0, -0.2]
-box_0/up: [57.0, 73.0, 2.0]
+# box_0/down: [-17.4, -8.0, -0.2]
+# box_0/up: [57.0, 73.0, 2.0]
+box_0/down: [-1.0, -1.0, -0.8]
+box_0/up: [50.0, 60.0, 1.8]
 dead_area_num: 0
 # trajectory param
 max_traj_len: 10.0

@@ -122,7 +122,6 @@ public:
 
   ros::Subscriber goal_sub;
   ros::Subscriber pos_sub;
-  ros::Publisher yaw_state_pub;
 
   minco::MINCO_S3NU yaw_traj_opt_;
   LocalTrajData local_data_;
