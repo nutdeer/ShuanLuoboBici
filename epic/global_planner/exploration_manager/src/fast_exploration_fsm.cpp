@@ -159,11 +159,11 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     {
       // Still in PLAN_TRAJ state, keep replanning
       stopTraj();
-      transitState(PLAN_TRAJ, "PLAN_TRAJ: plan failed", true);
+      transitState(PLAN_TRAJ, "[001] PLAN_TRAJ: plan failed", true);
     }
     else if (res == START_FAIL)
     {
-      transitState(CAUTION, "PLAN_TRAJ: start failed", true);
+      transitState(CAUTION, "[002] PLAN_TRAJ: start failed", true);  // 实机重规划
     }
     else
     {
@@ -186,13 +186,13 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     {
       transitState(
           PLAN_TRAJ,
-          "safetyCallback: not safe, time:" + to_string(collision_time), true);  // 输出和准备转换，实际重规划要等下次循环
+          "[004] safetyCallback: not safe, time:" + to_string(collision_time), true);  // 输出和准备转换，实际重规划要等下次循环
       if (collision_time < fp_->replan_time_ + 0.2)  // 重规划时间 0.5s
         stopTraj();
     }
     else if (!planner_manager_->checkTrajVelocity())
     {
-      transitState(PLAN_TRAJ, "velocity too fast", true);
+      transitState(PLAN_TRAJ, "[005] velocity too fast", true);
     }
 
     break;
@@ -205,10 +205,13 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
     bool success = planner_manager_->flyToSafeRegion(fd_->static_state_);
     if (success)
     {
-      traj_utils::PolyTraj poly_traj_msg;
       auto info = &planner_manager_->local_data_;
+      traj_utils::PolyTraj poly_traj_msg, poly_yaw_traj_msg;
       planner_manager_->polyTraj2ROSMsg(poly_traj_msg, info->start_time_);
+      planner_manager_->polyYawTraj2ROSMsg(poly_yaw_traj_msg, info->start_time_);
       fd_->newest_traj_ = poly_traj_msg;
+      fd_->newest_yaw_traj_ = poly_yaw_traj_msg;
+      poly_yaw_traj_pub_.publish(fd_->newest_yaw_traj_);  // 补 yaw 发布
       poly_traj_pub_.publish(fd_->newest_traj_);
       ros::Duration(0.2).sleep();
     }
@@ -358,7 +361,7 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
       bool safe = planner_manager_->checkTrajCollision(time);
       if (!safe)
       {
-        transitState(CAUTION, "odom_node no nbrs");
+        transitState(CAUTION, "[006] odom_node no nbrs");
       }
       else
       {
@@ -369,7 +372,7 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
     }
     else
     {
-      transitState(CAUTION, "odom_node no nbrs");
+      transitState(CAUTION, "[007] odom_node no nbrs");
     }
     global_path_update_timer_.start();
     return;

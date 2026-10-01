@@ -29,7 +29,7 @@ void FastExplorationFSM::pubState() {
 // 修改了函数逻辑,把回家的代码也加进去
 int FastExplorationFSM::generateTrajctoryPlanner() {
   if (planner_manager_->topo_graph_->odom_node_->neighbors_.empty())
-    return START_FAIL;  // 如果返回 这个, FSM 会到 CAUTION , 尝试飞到安全区域 (具体是怎么尝试到安全的? 需要确认)
+    return START_FAIL;  // 如果返回 这个, FSM 会到 CAUTION , 尝试飞到安全区域
   
   const bool is_back_home = fd_->back_home_active_;
   
@@ -67,7 +67,7 @@ int FastExplorationFSM::generateTrajctoryPlanner() {
     ROS_ERROR("ExplorationPlanner: Start point in occ");
     return START_FAIL;
   } else if (res == ParallelBubbleAstar::END_FAIL) {
-    ROS_ERROR("ExplorationPlanner: End point in occ");
+    ROS_ERROR("[008] ExplorationPlanner: End point in occ");
     return FAIL;
   } else if (res == ParallelBubbleAstar::TIME_OUT) {
     ROS_ERROR("ExplorationPlanner: Time out");

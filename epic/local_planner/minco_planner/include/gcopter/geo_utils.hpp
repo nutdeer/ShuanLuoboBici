@@ -40,7 +40,7 @@ namespace geo_utils
     // Each row of hPoly is defined by h0, h1, h2, h3 as
     // h0*x + h1*y + h2*z + h3 <= 0
     /**
-     * @brief 找到最内部的点
+     * @brief 找到最内部的点 最大化到所有面的最小距离
      */
     inline bool findInterior(const Eigen::MatrixX4d &hPoly, 
                              Eigen::Vector3d &interior)

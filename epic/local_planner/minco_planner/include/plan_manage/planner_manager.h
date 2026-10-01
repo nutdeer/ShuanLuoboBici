@@ -94,6 +94,7 @@ public:
 
   bool planExploreTraj(const vector<Eigen::Vector3f> &path, bool is_static);
   bool flyToSafeRegion(bool is_static);
+  void setHoldYawTraj(double yaw, double duration);   // 逃逸期间保持航向
   void polyTraj2ROSMsg(traj_utils::PolyTraj &poly_msg, const ros::Time &start_time);
   void polyYawTraj2ROSMsg(traj_utils::PolyTraj &poly_msg, const ros::Time &start_time);
 

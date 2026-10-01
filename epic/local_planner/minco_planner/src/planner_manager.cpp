@@ -184,6 +184,7 @@ bool FastPlannerManager::checkTrajVelocity() {
   return true;
 }
 
+// 从当前位置到走完会不会发生碰撞, 如果会的话 (中途任意一个位置) 就直接返回 false
 bool FastPlannerManager::checkTrajCollision(double &collision_time) {
   auto traj = local_data_.minco_traj_;
   double duration = local_data_.duration_;
@@ -194,9 +195,11 @@ bool FastPlannerManager::checkTrajCollision(double &collision_time) {
     return true;
   }
 
-  last_sphere_cen_ = traj.getPos(curr_time);
+  last_sphere_cen_ = traj.getPos(curr_time);  // last_sphere_cen_ 当前位置
+  // last_radius_ = DisToOcc - dilateRadiusHard
   double last_radius_ = lidar_map_interface_->getDisToOcc(last_sphere_cen_) -
                         gcopter_config_->dilateRadiusHard;
+  // curr_time +=0.05 一点点推进 检查安全么
   while (curr_time < duration) {
     Vector3d curr_pos = traj.getPos(curr_time);
     if ((curr_pos - last_sphere_cen_).norm() < last_radius_) {
@@ -344,7 +347,9 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   }
 
   Eigen::Vector4d bh;
-  bh << iniState.topLeftCorner<3, 1>(), 1.0;
+  bh << iniState.topLeftCorner<3, 1>(), 1.0;  // <3,1> 左上角3x1 = 第0列 = pos vector
+  // iniState 被检测点
+  // 
   int start_idx = -1;
   for (int i = hPolys.size() - 1; i >= 0; i--) {
     Eigen::MatrixX4d hp = hPolys[i];
@@ -354,13 +359,29 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
     }
   }
   if (start_idx == -1) {  // 当前无人机不在飞行走廊里
-    ROS_ERROR("current position not in corridor");
+
+    const Eigen::Vector3d chk = iniState.topLeftCorner<3, 1>();
+    const double dist_chk_path0 = (chk - path_shorten[0]).norm();
+    double a_viol = std::numeric_limits<double>::quiet_NaN();
+    double x_viol = std::numeric_limits<double>::quiet_NaN();
+
+    if (!hPolys.empty()) {
+      Eigen::Vector4d ah;                                                                          
+      ah << path_shorten[0], 1.0;                                     
+      a_viol = (hPolys[0] * ah).maxCoeff();    // 所有面取最大: <=-1e-6 是严格内部               
+      x_viol = (hPolys[0] * bh).maxCoeff();    // bh 直接用
+    }
+
+    ROS_ERROR("[009] current position not in corridor. Safe escape"                                           
+          "dist_chk_path0=%.3f a_viol=%.4f x_viol=%.4f",                                          
+          dist_chk_path0, a_viol, x_viol);
+
     double time;
     bool safe =
         local_data_.traj_id_ >= 1 && checkTrajCollision(time) && time > 2.0;
     if (!safe)
       return flyToSafeRegion(is_static);
-    // return false;
+    // 不被任何一个走廊包裹就安全逃逸
   }
   if (start_idx != 0) {  // 这个时候如果值是 -1 ，同样触发，这时候 会发生越界
     hPolys.erase(hPolys.begin(), hPolys.begin() + start_idx);
@@ -647,18 +668,6 @@ bool FastPlannerManager::YawTrajOpt(double &start_yaw, double &end_yaw,
       wpsYaw(2, i - 1) = 0.0;
     }
   }
-  // double dur_yaw = 0.0;
-  // for (int i = 0; i < opt_times_Yaw.size(); i++) {
-  //   dur_yaw += opt_times_Yaw[i];
-  // }
-  // cout << "dur_p= " << local_data_.duration_ << " dur_yaw= " << dur_yaw <<
-  // endl; cout << "start yaw = " << iniStateYaw.col(0).transpose() << endl;
-  // cout << "end yaw = " << finStateYaw.col(0).transpose() << endl;
-  // cout << "wpsYaw = " << endl;
-  // for (int i = 0; i < wpsYaw.cols(); i++) {
-  //   cout << wpsYaw.col(i).transpose()(0) << " ";
-  // }
-  // cout << endl;
 
   local_data_.minco_yaw_traj_.clear();
   if (std::isinf(gcopter_yaw.optimize_yaw(iniStateYaw, finStateYaw, pieceNUM,
@@ -670,7 +679,28 @@ bool FastPlannerManager::YawTrajOpt(double &start_yaw, double &end_yaw,
   return true;
 }
 
+// 常值 yaw 轨迹（5 次多项式只有常数项），时长与位置轨迹一致
+void FastPlannerManager::setHoldYawTraj(double yaw, double duration) {
+  // 3×6 各是什么
+  // 3 行：框架统一按 3 维存，行 0/1/2 对应 x/y/z。对 yaw 轨迹只有行 0（yaw）有用，行 1、2 恒为 0。
+  // 6 列：5 次多项式有 D+1 = 6 个系数。按 trajectory.hpp 的 getPos（col(D) 是常数项）约定：
+  // col(0) t⁵ + col(1) t⁴ + col(2) t³ + col(3) t² + col(4) t + col(5)
+  // col(5) 是常数项
+  Eigen::Matrix<double, 3, 6> cMat = Eigen::Matrix<double, 3, 6>::Zero();
+  cMat(0, 5) = yaw;  
+  local_data_.minco_yaw_traj_.clear();
+  local_data_.minco_yaw_traj_.emplace_back(std::max(duration, 0.1), cMat);
+}
+
 bool FastPlannerManager::flyToSafeRegion(bool is_static) {
+  // 阶跃B 修复 趁现在时间没向后赶紧拿到对应 yaw 后面拿就晚了
+  double hold_yaw = local_data_.curr_yaw_;
+  if (!is_static && local_data_.minco_yaw_traj_.getPieceNum() > 0) {
+    double time_yaw = (ros::Time::now() - local_data_.start_time_).toSec();
+    time_yaw = std::min(std::max(time_yaw, 0.0), local_data_.minco_yaw_traj_.getTotalDuration());
+    hold_yaw = local_data_.minco_yaw_traj_.getPos(time_yaw).x();
+  }
+  // 捞 4x4x4 空间点云
   Eigen::Vector3f min_bd, max_bd;
   for (int i = 0; i < 3; i++) {
     min_bd[i] = topo_graph_->odom_node_->center_[i] - 2.0;
@@ -688,11 +718,12 @@ bool FastPlannerManager::flyToSafeRegion(bool is_static) {
   sor.setInputCloud(cloud_origin);
   sor.setLeafSize(0.2, 0.2, 0.2);
   sor.filter(*cloud_tmp);
-
+  // 0.2 下采样捞点云到 surf_points
   surf_points.reserve(cloud_tmp->points.size());
   for (const pcl::PointXYZ &point : cloud_tmp->points) {
     surf_points.emplace_back(point.x, point.y, point.z);
   }
+  // 构建包围盒: 4x4x2m
   Eigen::Matrix<double, 6, 4> bd = Eigen::Matrix<double, 6, 4>::Zero();
   bd(0, 0) = 1.0;
   bd(1, 0) = -1.0;
@@ -718,12 +749,14 @@ bool FastPlannerManager::flyToSafeRegion(bool is_static) {
   Eigen::Map<const Eigen::Matrix<double, 3, -1, Eigen::ColMajor>> pc(
       surf_points[0].data(), 3, surf_points.size());
   Eigen::MatrixX4d hp;
+  // firi生成走廊
   firi::firi(bd, pc, topo_graph_->odom_node_->center_.cast<double>(),
              topo_graph_->odom_node_->center_.cast<double>(),
              hp); // 计算出包含a和b的凸包
   std::vector<Eigen::MatrixX4d> hPolys;
   hPolys.push_back(hp);
   hPolys.push_back(hp);
+  // 取内部点作为目标点
   Eigen::Vector3d inner;
   geo_utils::findInterior(hp, inner);
   Eigen::Vector4d bh;
@@ -731,6 +764,7 @@ bool FastPlannerManager::flyToSafeRegion(bool is_static) {
   Eigen::Matrix<double, 3, 4> iniState;
   Eigen::Vector3d dir =
       (inner - topo_graph_->odom_node_->center_.cast<double>()).normalized();
+  // 获取起点,如果当前静止就用 实际 odom 位置 curr_pos_ ,否则 就用 旧轨迹上的点 minco_traj_.getPos(time_now)
   if (is_static) {
     // TSP、更新地图等会阻塞里程计回调函数，导致这里的数据不准，所以只有static才用
     iniState << local_data_.curr_pos_, dir * 0.2, Eigen::Vector3d::Zero(),
@@ -763,7 +797,7 @@ bool FastPlannerManager::flyToSafeRegion(bool is_static) {
     }
   }
   if (start_idx == -1) {
-    ROS_ERROR("current position not in corridor");
+    ROS_ERROR("[010] current position not in corridor. fail flyToSafeRegion");
     return false;
   }
   if (start_idx != 0) {
@@ -832,6 +866,7 @@ bool FastPlannerManager::flyToSafeRegion(bool is_static) {
   local_data_.start_time_ = hpoly_gen_end;
   local_data_.start_pos_ = topo_graph_->odom_node_->center_.cast<double>();
   local_data_.duration_ = local_data_.minco_traj_.getTotalDuration();
+  setHoldYawTraj(hold_yaw, local_data_.duration_);
   return true;
 }
 
