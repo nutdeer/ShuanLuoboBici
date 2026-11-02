@@ -173,9 +173,10 @@ inline void convexCover(const std::unique_ptr<Visualizer> &vizer, const std::vec
   for (int i = 1; i < n;) {
     a = b;
     // 路径太长了，沿着方向拓展最大距离progress
-    if ((a - path[i]).norm() > progress) {  // 就是按 7 的距离切分路径
+    if ((a - path[i]).norm() > progress) {
+      // 如果 a 和 下一个路径点距离大于 7m 就截取到 7m
       b = (path[i] - a).normalized() * progress + a;
-    } else {
+    } else {  // 否则直接将下一个目标点设置为 path[i]
       b = path[i];
       i++;
     }

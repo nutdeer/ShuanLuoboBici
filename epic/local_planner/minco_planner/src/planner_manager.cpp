@@ -218,7 +218,7 @@ bool FastPlannerManager::checkTrajCollision(double &collision_time) {
   return true;
 }
 
-// zhou廊生成和轨迹生成
+// 走廊生成和轨迹生成
 bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bool is_static) {
 
   ros::Time start = ros::Time::now();
@@ -242,7 +242,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
     i++;
   }
   int end_idx = max(i, j);
-  // 两者取最大，如果路径笔直就不绕圈，如果路径弯曲就不走笔直
+
   if (end_idx < path.size() - 1) {
     use_shorten_path = true;
   } else {
@@ -250,8 +250,9 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   }
   for (int i = 0; i <= end_idx; i++) {
     path_shorten.emplace_back(path[i].cast<double>());
-  }  // 这就是当前使用的路径
+  }  // 这是当前使用的路径
 
+  // 如果接近水平飞行就算一下 end_yaw_ ,否则就用旧的
   if (use_shorten_path) {
     Eigen::Vector3f fwd_dir = path[end_idx] - path[end_idx - 1];
     if (fwd_dir.x() * fwd_dir.x() + fwd_dir.y() * fwd_dir.y() >
@@ -313,7 +314,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   ros::Time point_process_end_stamp = ros::Time::now();
 
   std::vector<Eigen::MatrixX4d> hPolys; // 多面体飞行走廊
-  // safe flight corridor generation
+  // safe flight corridor generation 凸
   // 生成飞行走廊
   // raw 深度容差：raw 点到走廊距离允许降到 drone_r - sfc_raw_delta_tol，
   // 用于吸收体素支撑界的少量保守性/传感器噪声（对应旧 top-3 均值的意图）
@@ -483,6 +484,7 @@ bool FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3f> &path, bo
   calculateTimelb(path_shorten, local_data_.curr_yaw_, local_data_.end_yaw_,
                   time_lb);
   cout << "lower_bd = " << time_lb << endl;
+  // 产生 minco 轨迹
   if (std::isinf(gcopter.optimize(local_data_.minco_traj_,
                                   gcopter_config_->relCostTol, time_lb))) {
     std::cout << "optimize failed!" << std::endl;

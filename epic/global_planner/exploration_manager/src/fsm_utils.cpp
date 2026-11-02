@@ -54,6 +54,7 @@ int FastExplorationFSM::generateTrajctoryPlanner() {
   vector<Eigen::Vector3f> path_next_goal;
 
   // 到这里就和探索没什么关系了单纯的路径搜索
+  // 用 bubble astar 查出topo路径
   int res = planner_manager_->fast_searcher_->search(planner_manager_->topo_graph_->odom_node_,
                                                      fd_->odom_vel_,
                                                      expl_manager_->ed_->next_goal_node_, //最佳探索点
@@ -84,21 +85,23 @@ int FastExplorationFSM::generateTrajctoryPlanner() {
     Eigen::Vector3d start_exp = info->minco_traj_.getPos(plan_finish_time_exp);
     path_next_goal.insert(path_next_goal.begin(), start_exp.cast<float>());
   }
-  vector<Eigen::Vector3f> path_next_goal_tmp;     // 这个里面存储规划的目标位置
-  path_next_goal_tmp.push_back(path_next_goal[0]);
+  vector<Eigen::Vector3f> path_next_goal_tmp;     // 路径重采样输出容器,里面存放着间隔 <= 1m 的路径点
+  path_next_goal_tmp.push_back(path_next_goal[0]);  // 第一个点手动放进去
 
-  for (size_t i = 1; i < path_next_goal.size();) {
+  for (size_t i = 1; i < path_next_goal.size();) {  // 便利原来路径剩下的点(去掉第一个)
     Eigen::Vector3f end_pt = path_next_goal_tmp.back();
-    if ((path_next_goal[i] - end_pt).norm() > 1.0) {
+    if ((path_next_goal[i] - end_pt).norm() > 1.0) {  // 当前位置距离上一个点大于 1m
       Eigen::Vector3f dir = (path_next_goal[i] - end_pt).normalized();
-      path_next_goal_tmp.push_back(end_pt + 1.0 * dir);
-    } else if ((path_next_goal[i] - end_pt).norm() < 0.01) {
+      path_next_goal_tmp.push_back(end_pt + 1.0 * dir);  // 路径这个方向上 增加一个点,距离上一个点是刚好 1m
+    } else if ((path_next_goal[i] - end_pt).norm() < 0.01) {  // 太近了直接跳过
       i++;
-    } else {
+    } else {  // 距离在 0.01 < dis < 1m, 那么直接把这个 位置 加到路径里
       path_next_goal_tmp.push_back(path_next_goal[i]);
       i++;
     }
   }
+  // 把重采样的数据直接0拷贝到路径规划器里
+  // path_next_goal_tmp 里就是 按1m 采样做的路径点
   expl_manager_->ed_->path_next_goal_.swap(path_next_goal_tmp);
   // 规划具体轨迹  这里是唯一会被调用的地方
   if (planner_manager_->planExploreTraj(expl_manager_->ed_->path_next_goal_, fd_->static_state_))
