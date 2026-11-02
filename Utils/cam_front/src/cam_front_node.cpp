@@ -15,13 +15,14 @@ int main(int argc, char** argv) {
   std::string device, frame_id, fourcc;
   int width, height, capture_width, capture_height;
   double fps;
-  bool mono;
+  bool mono, flip;
   nh.param("device", device, std::string("/dev/video0"));
   nh.param("frame_id", frame_id, std::string("camera_front"));
   nh.param("width", width, 320);
   nh.param("height", height, 240);
   nh.param("fps", fps, 30.0);
   nh.param("mono", mono, false);
+  nh.param("flip", flip, false);
   nh.param("capture_width", capture_width, 0);
   nh.param("capture_height", capture_height, 0);
   nh.param("fourcc", fourcc, std::string("MJPG"));
@@ -91,6 +92,11 @@ int main(int argc, char** argv) {
       }
       cv::resize(bgr, out_frame, cv::Size(width, height));
     }
+
+    if (flip) {
+    cv::rotate(out_frame, out_frame, cv::ROTATE_180);
+  }
+
 
     // The timestamp is stored in the ROS message and can be used for sync.
     std_msgs::Header header;

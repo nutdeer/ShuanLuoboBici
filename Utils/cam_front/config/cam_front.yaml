@@ -14,3 +14,4 @@ fps: 15
 
 # true 发布 mono8 黑白,false 发布 bgr8 彩色
 mono: true
+flip: true
