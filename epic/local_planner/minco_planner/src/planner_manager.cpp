@@ -695,13 +695,6 @@ void FastPlannerManager::setHoldYawTraj(double yaw, double duration) {
 }
 
 bool FastPlannerManager::flyToSafeRegion(bool is_static) {
-  // 阶跃B 修复 趁现在时间没向后赶紧拿到对应 yaw 后面拿就晚了
-  double hold_yaw = local_data_.curr_yaw_;
-  if (!is_static && local_data_.minco_yaw_traj_.getPieceNum() > 0) {
-    double time_yaw = (ros::Time::now() - local_data_.start_time_).toSec();
-    time_yaw = std::min(std::max(time_yaw, 0.0), local_data_.minco_yaw_traj_.getTotalDuration());
-    hold_yaw = local_data_.minco_yaw_traj_.getPos(time_yaw).x();
-  }
   // 捞 4x4x4 空间点云
   Eigen::Vector3f min_bd, max_bd;
   for (int i = 0; i < 3; i++) {
@@ -864,8 +857,18 @@ bool FastPlannerManager::flyToSafeRegion(bool is_static) {
     return false;
   }
   ros::Time optimize_end_stamp = ros::Time::now();
+
+  // 阶跃B 修复 趁现在时间没向后赶紧拿到对应 yaw 后面拿就晚了
+  // 阶跃B 邻近发布采样 yaw
+  double hold_yaw = local_data_.curr_yaw_;
+  if (!is_static && local_data_.minco_yaw_traj_.getPieceNum() > 0) {  // 当前运动且旧轨迹是保留的
+    double time_yaw = (ros::Time::now() - local_data_.start_time_).toSec();  // 轨迹到现在执行了多久
+    time_yaw = std::min(std::max(time_yaw, 0.0), local_data_.minco_yaw_traj_.getTotalDuration());
+    hold_yaw = local_data_.minco_yaw_traj_.getPos(time_yaw).x();
+  }
+
   local_data_.traj_id_ += 1;
-  local_data_.start_time_ = hpoly_gen_end;
+  local_data_.start_time_ = hpoly_gen_end;  // 这里发生了时间更新
   local_data_.start_pos_ = topo_graph_->odom_node_->center_.cast<double>();
   local_data_.duration_ = local_data_.minco_traj_.getTotalDuration();
   setHoldYawTraj(hold_yaw, local_data_.duration_);
