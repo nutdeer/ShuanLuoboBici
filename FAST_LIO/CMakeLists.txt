@@ -77,8 +77,8 @@ generate_messages(
  geometry_msgs
 )
 
-catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime
+catkin_package(CATKIN_DEPENDS
+  geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime
   DEPENDS EIGEN3 PCL
   INCLUDE_DIRS
 )
