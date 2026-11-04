@@ -1,0 +1,43 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="init_z" default="1.0"/>
+  <arg name="init_y" default="0.0"/>
+  <arg name="init_x" default="1.0"/>
+  <arg name="map_file" default="$(find map_generator)/resource/rigo_lab.pcd"/>
+  <arg name="rviz" default="true"/>
+  <arg name="use_gpu" default="true"/>
+  <arg name="odom_topic" value="/quad_0/lidar_slam/odom"/>
+  <arg name="sensing_horizon_mid360" value="60.0"/>
+  <arg name="use_mid360" value="true"/>
+  <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
+    <remap from="~odom" to="$(arg odom_topic)"/>
+    <remap from="~goal" to="/move_base_simple/goal"/>
+    <remap from="~traj_start_trigger" to="/traj_start_trigger"/>
+    <param name="waypoint_type" value="point"/>
+  </node>
+  <node pkg="odom_visualization" name="quad0_odom_visualization" type="odom_visualization" output="screen">
+    <remap from="~odom" to="$(arg odom_topic)"/>
+    <param name="init_x" value="$(arg init_x)"/>
+    <param name="init_y" value="$(arg init_y)"/>
+    <param name="init_z" value="$(arg init_z)"/>
+    <param name="color/a" value="1.0"/>
+    <param name="color/r" value="0.0"/>
+    <param name="color/g" value="1.0"/>
+    <param name="color/b" value="1.0"/>
+    <param name="covariance_scale" value="100.0"/>
+    <param name="robot_scale" value="1.0"/>
+    <param name="quadrotor_name" value="quad0"/>
+    <param name="drone_id" value="0"/>
+    <param name="mesh_resource" value="package://odom_visualization/meshes/yunque.dae"/>
+  </node>
+  <include file="$(find mars_drone_sim)/launch/rigo_lab.launch">
+    <arg name="sensing_horizon" value="$(arg sensing_horizon_mid360)"/>
+    <arg name="use_gpu_" value="$(arg use_gpu)"/>
+    <arg name="map_name" value="$(arg map_file)"/>
+    <arg name="init_x" value="$(arg init_x)"/>
+    <arg name="init_y" value="$(arg init_y)"/>
+    <arg name="init_z" value="$(arg init_z)"/>
+  </include>
+  <node if="$(arg rviz)" pkg="rviz" name="rvizvisualisation" type="rviz" output="log" args="-d $(find epic_planner)/config/rigo_lab.rviz"/>
+  <node pkg="tf" type="static_transform_publisher" name="tf_53" args="0 0 0 0 0 0 world navigation 100"/>
+</launch>

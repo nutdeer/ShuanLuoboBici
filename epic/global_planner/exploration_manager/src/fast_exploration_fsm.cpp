@@ -174,6 +174,35 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e)
 
   case EXEC_TRAJ:
   {
+    // 临时仿真测试 请求后，等正在转向时触发一次逃逸
+    // 再开一个终端用触发 rosparam set /yaw_test/force_escape true 
+    bool force_escape = false;
+    ros::param::param<bool>(
+        "/yaw_test/force_escape", force_escape, false);
+
+    if (force_escape && !fd_->static_state_) {
+      const auto &data = planner_manager_->local_data_;
+      const double t =
+          (ros::Time::now() - data.start_time_).toSec();
+
+      if (data.minco_yaw_traj_.getPieceNum() > 0 &&
+          t >= 0.0 &&
+          t < data.minco_yaw_traj_.getTotalDuration() &&
+          t < data.duration_) {
+        const double yaw_rate =
+            data.minco_yaw_traj_.getVel(t).x();
+
+        if (std::abs(yaw_rate) > 0.2) {
+          // 消费本次请求，避免每次循环都触发。
+          ros::param::set("/yaw_test/force_escape", false);
+          ROS_WARN("[yaw_test] force escape, yaw_rate=%.3f",
+                   yaw_rate);
+          transitState(CAUTION, "[yaw_test] force escape", true);
+          break;
+        }
+      }
+    }
+    // 临时测试区
     if ( fd_->back_home_active_ && (fd_->odom_pos_ - fd_->home_pos_).norm() < 0.2f )
     {
       transitState(LAND,"arrived home.");
