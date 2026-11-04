@@ -1178,14 +1178,16 @@ void FrontierManager::selectBestViewpoint(ClusterInfo::Ptr &cluster) {
 
 // 视点初始化 通过DBSCAN创建候选视点
 // 使用预定义视点模板生成候选视点->DBscan基于联通性聚类->生成最后的视点聚类表
+// 这个内容只是说, 按照当前的观测按照模板把视点转化成
 void FrontierManager::initClusterViewpoints(ClusterInfo::Ptr &cluster) {
   cluster->vp_clusters_.clear();
   PointVector vps_init;
   vps_init.reserve(origin_viewpoints_.size());
+  // 内部定义了一个函数
   auto tryAddViewpoint = [&](const Eigen::Vector3f &vp) {
-    if (lidar_map_interface_->getDisToOcc(vp) < 0.9)
+    if (lidar_map_interface_->getDisToOcc(vp) < 0.9)   // # 注意这里是硬编码了一个值,如果不适合应该改成参数挂到yaml里
       return;
-    if (!isInBox(vp))
+    if (!isInBox(vp))  // vp不在box里直接退
       return;
     Eigen::Vector3i idx;
     graph_->getIndex(vp, idx);
@@ -1197,18 +1199,6 @@ void FrontierManager::initClusterViewpoints(ClusterInfo::Ptr &cluster) {
   for (auto &ovp : origin_viewpoints_) {
     tryAddViewpoint(ovp + cluster->center_);
   }
-  // 兜底：模板只在中心上方采样，靠近探索箱 z 上限的聚类（如树冠层前沿）
-  // 会全部出界导致永远生成不出视点；此时把模板 z 镜像到中心下方再采一次
-  // 代码级修改不太合理,只要在视点生成模板那里配好对称参数就行, 可以删除的代码
-  /*
-  if (vps_init.empty()) 
-  {
-    for (auto &ovp : origin_viewpoints_) 
-    {
-      tryAddViewpoint(cluster->center_ +
-                      Eigen::Vector3f(ovp.x(), ovp.y(), -ovp.z()));
-    }
-  }*/
   if (vps_init.empty()) {
     cluster->is_reachable_ = false;
     return;

@@ -32,7 +32,7 @@ class GraphVisualizer {
 public:
   ros::NodeHandle nh_;
   ros::Publisher viz_graph_pub_, global_tour_pub_, coverage_bubbles_pub_,
-      split_boxes_pub_;
+      split_boxes_pub_, region_boxes_pub_;
   typedef std::shared_ptr<GraphVisualizer> Ptr;
 
   void init(ros::NodeHandle &nh) {
@@ -41,8 +41,50 @@ public:
     global_tour_pub_ = nh_.advertise<MarkerArray>("/global_tour", 5);
     coverage_bubbles_pub_ =
         nh_.advertise<MarkerArray>("/bubble_topo/coverage_bubbles", 1, true);
+    region_boxes_pub_ =
+        nh_.advertise<MarkerArray>("/bubble_topo/region_boxes", 1, true);
     split_boxes_pub_ =
         nh_.advertise<MarkerArray>("/bubble_topo/split_boxes", 1, true);
+  }
+
+  // Display actual region bounds, including portions outside the exploration box.
+  // Namespaces separate height layers and optional index labels in RViz.
+  void inline vizRegionBoxes(const TopoGraph::Ptr &topo_graph) {
+    if (region_boxes_pub_.getNumSubscribers() == 0)
+      return;
+    MarkerArray markers;
+    Marker clear;
+    clear.action = Marker::DELETEALL;
+    markers.markers.emplace_back(clear);
+    std::unordered_map<int, int> layer_ids;
+    for (const auto &[idx, region] : topo_graph->reg_map_idx2ptr_) {
+      if (region == nullptr)
+        continue;
+      Eigen::Vector3f lb, hb;
+      topo_graph->index2boundary(idx, lb, hb);
+      const std::string layer = std::to_string(idx.z());
+      const VizColor color = idx.z() % 2 == 0 ? VizColor::EMERALD : VizColor::MAGNA;
+      const int id = layer_ids[idx.z()]++;
+      Marker box;
+      SetMarker(color, "region_box_z" + layer, 0.025f, 0.65f, box, 1.0f);
+      box.id = id;
+      vizBox(lb, hb, box);
+      markers.markers.emplace_back(std::move(box));
+
+      Marker label;
+      SetMarker(color, "region_label_z" + layer, 0.18f, 0.9f, label, 1.0f);
+      label.id = id;
+      label.type = Marker::TEXT_VIEW_FACING;
+      label.pose.position.x = (lb.x() + hb.x()) * 0.5f;
+      label.pose.position.y = (lb.y() + hb.y()) * 0.5f;
+      label.pose.position.z = (lb.z() + hb.z()) * 0.5f;
+      char caption[128];
+      snprintf(caption, sizeof(caption), "(%d,%d,%d) z=[%.2f,%.2f]",
+               idx.x(), idx.y(), idx.z(), lb.z(), hb.z());
+      label.text = caption;
+      markers.markers.emplace_back(std::move(label));
+    }
+    region_boxes_pub_.publish(markers);
   }
 
   // 显示递归空间填充生成的全部球。不同半径无法使用 SPHERE_LIST，

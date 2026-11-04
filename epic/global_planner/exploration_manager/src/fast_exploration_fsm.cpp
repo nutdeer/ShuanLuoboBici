@@ -373,6 +373,8 @@ void FastExplorationFSM::updateTopoAndGlobalPath()
   planner_manager_->topo_graph_->getRegionsToUpdate();    //获取拓扑图需要更新的区域
   // cout << "getRegionsToUpdate time cost:" << (ros::Time::now() - t2).toSec() * 1000 << "ms" << endl;
   planner_manager_->topo_graph_->updateSkeleton();        //更新拓扑图
+  planner_manager_->graph_visualizer_->vizRegionBoxes(
+      planner_manager_->topo_graph_);
   if (planner_manager_->topo_graph_->viz_split_boxes_)
     planner_manager_->graph_visualizer_->vizSplitBoxes(
         planner_manager_->topo_graph_);
