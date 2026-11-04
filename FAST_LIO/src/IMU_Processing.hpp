@@ -41,6 +41,7 @@ class ImuProcess
   
   void Reset();
   void Reset(double start_timestamp, const sensor_msgs::ImuConstPtr &lastimu);
+  void set_acc_bias(const V3D &b_a);
   void set_extrinsic(const V3D &transl, const M3D &rot);
   void set_extrinsic(const V3D &transl);
   void set_extrinsic(const MD(4,4) &T);
@@ -52,6 +53,7 @@ class ImuProcess
   void Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr pcl_un_);
 
   ofstream fout_imu;
+  V3D initial_acc_bias_ = V3D::Zero();
   V3D cov_acc;
   V3D cov_gyr;
   V3D cov_acc_scale;
@@ -144,6 +146,11 @@ void ImuProcess::set_acc_cov(const V3D &scaler)
   cov_acc_scale = scaler;
 }
 
+void ImuProcess::set_acc_bias(const V3D &b_a)
+{
+  initial_acc_bias_ = b_a;
+}
+
 void ImuProcess::set_gyr_bias_cov(const V3D &b_g)
 {
   cov_bias_gyr = b_g;
@@ -190,9 +197,18 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
 
     N ++;
   }
+  // state_ikfom init_state = kf_state.get_x();
+  // init_state.grav = S2(- mean_acc / mean_acc.norm() * G_m_s2);
+  // 针对世界坐标是倾斜的 做世界坐标矫正
   state_ikfom init_state = kf_state.get_x();
-  init_state.grav = S2(- mean_acc / mean_acc.norm() * G_m_s2);
-  
+  init_state.ba = initial_acc_bias_;
+  V3D acc_init = mean_acc - init_state.ba;  // 直接把标定结果作用在 acc_init
+  // 把 acc_init 旋转到 z轴 正方向
+  Eigen::Quaterniond q_align = Eigen::Quaterniond::FromTwoVectors(acc_init.normalized(), V3D::UnitZ());
+
+  init_state.rot = SO3(q_align.toRotationMatrix());
+  init_state.grav = S2(V3D(0, 0, -G_m_s2));
+
   //state_inout.rot = Eye3d; // Exp(mean_acc.cross(V3D(0, 0, -1 / scale_gravity)));
   init_state.bg  = mean_gyr;
   init_state.offset_T_L_I = Lidar_T_wrt_IMU;
@@ -254,8 +270,8 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikf
                 0.5 * (head->linear_acceleration.z + tail->linear_acceleration.z);
 
     // fout_imu << setw(10) << head->header.stamp.toSec() - first_lidar_time << " " << angvel_avr.transpose() << " " << acc_avr.transpose() << endl;
-
-    acc_avr     = acc_avr * G_m_s2 / mean_acc.norm(); // - state_inout.ba;
+    // 这段 imu 的平均加速度
+    acc_avr = acc_avr * G_m_s2 / mean_acc.norm(); // - state_inout.ba;
 
     if(head->header.stamp.toSec() < last_lidar_end_time_)
     {

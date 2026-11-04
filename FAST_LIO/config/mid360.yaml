@@ -1,7 +1,7 @@
 common:
     lid_topic:  "/livox/lidar"
     imu_topic:  "/mavros/imu/data_raw"
-    imu_acc_scale: 1.0
+    imu_acc_scale: 1.0  # 1.0 的意思就是 m/s^2 如果用内部雷达就单位不一样了
     # imu_topic:  "/mavros/imu/data"
     time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
     time_offset_lidar_to_imu: -0.027735 # Time offset between lidar and IMU calibrated by other algorithms, e.g. LI-Init (can be found in README).
@@ -13,6 +13,7 @@ preprocess:
     blind: 0.4
 
 mapping:
+    acc_bias: [0.010680, -0.009485, -0.009797]  # m/s^2
     acc_cov: 0.1
     gyr_cov: 0.1
     b_acc_cov: 0.001
