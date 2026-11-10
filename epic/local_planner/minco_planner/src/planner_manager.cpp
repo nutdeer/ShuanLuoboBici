@@ -561,8 +561,8 @@ bool FastPlannerManager::YawTrajOpt(double &start_yaw, double &end_yaw,
   angleLimite(yaw_sp);
   static double yaw_dur = 0.3;
   // double yaw_dur = local_data_.duration_ / 12.0;
-  double fwd_time = gcopter_config_->yaw_time_fwd;
-  vector<double> look_fwd_wp;
+  double fwd_time = gcopter_config_->yaw_time_fwd;  // 现在的状态是往前面数 3s
+  vector<double> look_fwd_wp;  // 里面存着一堆 yaw yaw_sp 是第一个值,当前初始偏航角
   look_fwd_wp.push_back(yaw_sp);
   for (double t = yaw_dur; t < local_data_.duration_ + yaw_dur; t += yaw_dur) {
     if (t > local_data_.duration_) {
@@ -576,25 +576,54 @@ bool FastPlannerManager::YawTrajOpt(double &start_yaw, double &end_yaw,
     Eigen::Vector3d p_f =
         local_data_.minco_traj_.getPos(min(t_fwd, local_data_.duration_));
     Eigen::Vector2d dir = p_f.head(2) - p_c.head(2);
-    if (dir.norm() < fabs(p_f.z() - p_c.z()) || dir.norm() < 0.05) {
-      // if (p_f.z() - p_c.z() > 0) {
-      //   look_fwd_wp.push_back(look_fwd_wp.back());
-      // } else
-      // if (dir.norm() > 0.1) {
-      //   double yaw = atan2(dir.y(), dir.x()) + min(M_PI, yaw_dur *
-      //   gcopter_config_->yaw_max_vel); double delta_yaw = yaw -
-      //   look_fwd_wp.back(); angleLimite(delta_yaw);
-      //   look_fwd_wp.push_back(look_fwd_wp.back() + delta_yaw);
-      // } else
-      look_fwd_wp.push_back(
-          look_fwd_wp.back() +
-          min(M_PI, yaw_dur * gcopter_config_->yaw_max_vel * 0.6));
+    const double dir_horiz = dir.norm();
+
+    if (dir_horiz < std::fabs(p_f.z() - p_c.z()) || dir_horiz < 0.05) {
+      // 平移很小时，向目标观测朝向收敛
+      // 使用最短角度差，避免跨越正负 pi 时绕远路
+      double delta_yaw = local_data_.end_yaw_ - look_fwd_wp.back();
+      angleLimite(delta_yaw);
+      // 限幅
+      const double max_delta_yaw = gcopter_config_->yaw_max_vel * yaw_dur;
+      if (delta_yaw > max_delta_yaw) 
+      { 
+        delta_yaw = max_delta_yaw;
+      } 
+      else if (delta_yaw < -max_delta_yaw) 
+      {
+        delta_yaw = -max_delta_yaw;
+      }
+
+      look_fwd_wp.push_back(look_fwd_wp.back() + delta_yaw);
     } else {
-      double yaw = atan2(dir.y(), dir.x());
+      const double yaw = std::atan2(dir.y(), dir.x());
       double delta_yaw = yaw - look_fwd_wp.back();
       angleLimite(delta_yaw);
-      look_fwd_wp.push_back(look_fwd_wp.back() + delta_yaw);
+
+      look_fwd_wp.push_back(
+          look_fwd_wp.back() + delta_yaw);
     }
+
+    // // 观察如果主要是垂直运动 或者 移动的量非常的少 那么就会干以下这些坏事: 这是原来代码的逻辑,试着上面效果不错这里就可以删掉了
+    // if (dir.norm() < fabs(p_f.z() - p_c.z()) || dir.norm() < 0.05) {
+    //   // if (p_f.z() - p_c.z() > 0) {
+    //   //   look_fwd_wp.push_back(look_fwd_wp.back());
+    //   // } else
+    //   // if (dir.norm() > 0.1) {
+    //   //   double yaw = atan2(dir.y(), dir.x()) + min(M_PI, yaw_dur *
+    //   //   gcopter_config_->yaw_max_vel); double delta_yaw = yaw -
+    //   //   look_fwd_wp.back(); angleLimite(delta_yaw);
+    //   //   look_fwd_wp.push_back(look_fwd_wp.back() + delta_yaw);
+    //   // } else
+    //   look_fwd_wp.push_back(  // 前视偏航角（Look-forward Yaw Waypoints
+    //       look_fwd_wp.back() +
+    //       min(M_PI, yaw_dur * gcopter_config_->yaw_max_vel * 0.6));
+    // } else {
+    //   double yaw = atan2(dir.y(), dir.x());
+    //   double delta_yaw = yaw - look_fwd_wp.back();
+    //   angleLimite(delta_yaw);
+    //   look_fwd_wp.push_back(look_fwd_wp.back() + delta_yaw);
+    // }
   }
 
   vector<double> wp;
