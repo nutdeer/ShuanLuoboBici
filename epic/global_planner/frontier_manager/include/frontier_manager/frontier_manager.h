@@ -62,6 +62,7 @@ struct ViewpointParam {
       view_direction_range_;
   float fov_up_, fov_down_, lidar_pitch_;
   int consider_range_, global_recluster_size_, local_tsp_size_;
+  double viewpoint_reached_distance_,viewpoint_reached_yaw_;
 };
 struct ByteArrayRaw {
   uint8_t *data;

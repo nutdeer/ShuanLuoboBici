@@ -59,6 +59,11 @@ void FrontierManager::init(ros::NodeHandle &nh, LIOInterface::Ptr &lio_interface
               vpp_.global_recluster_size_);
   nh.getParam("ViewpointManager/local_tsp_size", vpp_.local_tsp_size_);
 
+  nh.param<double>(
+    "ViewpointManager/viewpoint_reached_distance", vpp_.viewpoint_reached_distance_, 0.25);
+  nh.param<double>(
+    "ViewpointManager/viewpoint_reached_yaw", vpp_.viewpoint_reached_yaw_, 0.2);
+
   nh.getParam("lidar_perception/fov_viewpoint_up", vpp_.fov_up_);
   nh.getParam("lidar_perception/lidar_pitch", vpp_.lidar_pitch_);
   nh.getParam("lidar_perception/fov_viewpoint_down", vpp_.fov_down_);
@@ -1159,9 +1164,13 @@ void FrontierManager::selectBestViewpoint(ClusterInfo::Ptr &cluster) {
     cluster->best_vp_yaw_ = yaw[best_vp_idx];
     cluster->best_vp_ = vps[best_vp_idx].getVector3fMap();
     // 在这个位置把簇标记为可达
-    // 原始代码要求 位置误差 < 0.01m yaw误差 <0.01 rad
-    if (((cluster->best_vp_ - graph_->odom_node_->center_).norm() < 1e-2) &&
-        (fabs(cluster->best_vp_yaw_ - graph_->odom_node_->yaw_) < 1e-2)) {
+    // 原始代码要求 位置误差 < 0.01m yaw误差 <0.01 rad ;yaw直接做代数差也不对
+    const double position_error = (cluster->best_vp_ - graph_->odom_node_->center_).norm();
+    const double yaw_diff_ = cluster->best_vp_yaw_ - graph_->odom_node_->yaw_;
+    const double yaw_error = std::fabs(std::atan2(std::sin(yaw_diff_), std::cos(yaw_diff_)));
+
+    if ( position_error < vpp_.viewpoint_reached_distance_ &&
+         yaw_error      < vpp_.viewpoint_reached_yaw_) {
       cluster->is_reachable_ = false;
       cluster->is_dormant_ = true;
       cluster->vp_clusters_.clear();

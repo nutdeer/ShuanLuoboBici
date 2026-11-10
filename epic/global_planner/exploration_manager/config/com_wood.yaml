@@ -54,6 +54,8 @@ ViewpointManager/sample_pillar_max_radius: 4.0
 ViewpointManager/sample_pillar_radius_layer_num: 8
 ViewpointManager/sample_pillar_circle_sample_num: 4
 ViewpointManager/local_tsp_size: 10
+ViewpointManager/viewpoint_reached_distance: 0.25  # m
+ViewpointManager/viewpoint_reached_yaw: 0.2  # rad ~11degree
 # area 规划区域限制
 box_num: 1
 # box_0/down: [-17.4, -8.0, -0.2]
