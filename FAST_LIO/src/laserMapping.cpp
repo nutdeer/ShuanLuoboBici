@@ -174,7 +174,7 @@ void fastPredictIMU(double t, V3D acc, V3D gyr)
     double dt = t - latest_time;
     latest_time = t;
 
-    double IMU_EXPECTED_HZ = 200.0; //强制定义 后续应修改  zwx 26.11.2 确实需要修改,如果不是 livox imu 这里就不行了
+    double IMU_EXPECTED_HZ = 135.0; //强制定义 后续应修改  zwx 26.11.2 确实需要修改,如果不是 livox imu 这里就不行了
     double MAX_VALID_DT = 1.5 / IMU_EXPECTED_HZ;
     double MIN_VALID_DT = 0.5 / IMU_EXPECTED_HZ;
     if (dt < 0) {

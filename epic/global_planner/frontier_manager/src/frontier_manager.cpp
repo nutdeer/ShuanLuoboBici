@@ -1158,6 +1158,8 @@ void FrontierManager::selectBestViewpoint(ClusterInfo::Ptr &cluster) {
     cluster->is_reachable_ = true;
     cluster->best_vp_yaw_ = yaw[best_vp_idx];
     cluster->best_vp_ = vps[best_vp_idx].getVector3fMap();
+    // 在这个位置把簇标记为可达
+    // 原始代码要求 位置误差 < 0.01m yaw误差 <0.01 rad
     if (((cluster->best_vp_ - graph_->odom_node_->center_).norm() < 1e-2) &&
         (fabs(cluster->best_vp_yaw_ - graph_->odom_node_->yaw_) < 1e-2)) {
       cluster->is_reachable_ = false;
