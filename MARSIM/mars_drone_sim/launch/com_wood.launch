@@ -1,4 +1,6 @@
 <launch>
+        <arg name="initial_height" default="-1.0" />
+        <arg name="position_cmd_topic" default="/planning/pos_cmd" />
         <arg name="use_gpu_" value="true" />
         <arg name="sensing_horizon" />
         <arg name="drone_num" value="1" />
@@ -47,7 +49,8 @@
                 
                 <arg name="init_x_" value="0.0" />
                 <arg name="init_y_" value="0.0" />
-                <arg name="init_z_" value="0.5" />
+                <arg name="init_z_" value="$(arg initial_height)" />
+                <arg name="position_cmd_topic" value="$(arg position_cmd_topic)" />
                 <arg name="init_yaw" value="0.0" />
                 <arg name="lidar_pitch_" value="$(arg lidar_pitch)" />
                 <arg name="map_name_" value="$(arg map_name)" />

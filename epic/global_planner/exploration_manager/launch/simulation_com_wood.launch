@@ -1,9 +1,26 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="sim_takeoff" default="false" />
+    <arg name="initial_height" default="0.0" />
     <arg name="odom_topic" value="/quad_0/lidar_slam/odom" />
     <!-- set for mid 360 -->
     <arg name="sensing_horizon_mid360" value="60.0" />
     <arg name="use_mid360" value="true" />
+    <group if="$(arg sim_takeoff)">
+        <node pkg="test_interface" name="sim_takeoff_bridge" type="sim_takeoff_bridge.py"
+            output="screen" required="true">
+            <param name="simulation_only" value="true" />
+            <param name="climb_duration" value="3.0" />
+            <param name="stable_duration" value="1.0" />
+            <remap from="~odom" to="$(arg odom_topic)" />
+            <remap from="~takeoff_land" to="/sim/takeoff_land" />
+            <remap from="~planner_cmd" to="/planning/pos_cmd" />
+            <remap from="~controller_cmd" to="/sim/position_cmd" />
+            <remap from="~goal_in" to="/goal_rviz" />
+            <remap from="~goal_out" to="/sim/planner_goal" />
+            <remap from="~state" to="/sim/takeoff_state" />
+        </node>
+    </group>
     <!-- trajectory server -->
     <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator"
         output="screen">
@@ -31,6 +48,8 @@
     </node>
     <include file="$(find mars_drone_sim)/launch/com_wood.launch">
         <arg name="sensing_horizon" value="$(arg sensing_horizon_mid360)" />
+        <arg name="initial_height" value="$(arg initial_height)" />
+        <arg name="position_cmd_topic" value="$(eval '/sim/position_cmd' if arg('sim_takeoff') else '/planning/pos_cmd')" />
     </include>
 
     <include file="$(find epic_planner)/launch/rviz.launch">

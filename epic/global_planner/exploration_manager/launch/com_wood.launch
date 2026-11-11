@@ -1,15 +1,30 @@
 <launch>
   <arg name="map_name" value="com_wood" />
   <arg name="config_file" default="$(arg map_name).yaml" />
+  <!-- This entry starts MARSIM. Shared and real-flight entries stay unchanged. -->
+  <arg name="sim_takeoff" default="true" />
+  <arg name="sim_initial_height" default="0.0" />
 
-  <include file="$(find epic_planner)/launch/algorithm.xml">
-    <arg name="config_file" value="$(arg config_file)" />
-  </include>
+  <group if="$(arg sim_takeoff)">
+    <remap from="/px4ctrl/takeoff_land" to="/sim/takeoff_land" />
+    <remap from="/goal_rviz" to="/sim/planner_goal" />
+    <include file="$(find epic_planner)/launch/algorithm.xml">
+      <arg name="config_file" value="$(arg config_file)" />
+    </include>
+  </group>
+  <group unless="$(arg sim_takeoff)">
+    <include file="$(find epic_planner)/launch/algorithm.xml">
+      <arg name="config_file" value="$(arg config_file)" />
+    </include>
+  </group>
 
   <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
     <remap from="/position_cmd" to="/planning/pos_cmd" />
   </node>
 
-  <include file="$(find epic_planner)/launch/simulation_$(arg map_name).launch"/>
+  <include file="$(find epic_planner)/launch/simulation_$(arg map_name).launch">
+    <arg name="sim_takeoff" value="$(arg sim_takeoff)" />
+    <arg name="initial_height" value="$(arg sim_initial_height)" />
+  </include>
 
 </launch>
