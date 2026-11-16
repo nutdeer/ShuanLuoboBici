@@ -423,22 +423,24 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
     msg->linear_acceleration.x *= imu_acc_scale;
     msg->linear_acceleration.y *= imu_acc_scale;
     msg->linear_acceleration.z *= imu_acc_scale;
-    
-    if(init && imucrem_en)
-    {
-        fastPredictIMU(msg->header.stamp.toSec(),
-                V3D(msg->linear_acceleration.x,msg->linear_acceleration.y,msg->linear_acceleration.z),
-                V3D(msg->angular_velocity.x,msg->angular_velocity.y,msg->angular_velocity.z));
-    }
-
+    // 先同步 mid360.yaml time_offset_lidar_to_imu: -0.027735
     msg->header.stamp = ros::Time().fromSec(msg_in->header.stamp.toSec() - time_diff_lidar_to_imu);
+    // time_sync_en: false 时这里一定不会进入
     if (abs(timediff_lidar_wrt_imu) > 0.1 && time_sync_en)
     {
         msg->header.stamp = \
         ros::Time().fromSec(timediff_lidar_wrt_imu + msg_in->header.stamp.toSec());
     }
 
-    double timestamp = msg->header.stamp.toSec();
+    const double timestamp = msg->header.stamp.toSec();
+    // 同步之后做高频里程计, 用imu积分插值
+    // Use the same corrected IMU time for prediction and LIO synchronization.
+    if(init && imucrem_en)
+    {
+        fastPredictIMU(timestamp,
+                V3D(msg->linear_acceleration.x,msg->linear_acceleration.y,msg->linear_acceleration.z),
+                V3D(msg->angular_velocity.x,msg->angular_velocity.y,msg->angular_velocity.z));
+    }
 
     mtx_buffer.lock();
 
