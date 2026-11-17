@@ -153,7 +153,7 @@ void FrontierManager::generateTSPViewpoints(Eigen::Vector3f&center,  vector<Topo
     mtx.lock();
     tsp_clusters.push_back(cluster);
     if (cluster->is_dormant_) {
-      cluster2remove.insert(i);
+      cluster2remove.insert(cluster->id_);  // 存放循环下标
     }
     mtx.unlock();
   }
@@ -161,7 +161,7 @@ void FrontierManager::generateTSPViewpoints(Eigen::Vector3f&center,  vector<Topo
   // **清除无效聚类 标记为占用**
   // 飞到但看不到，说明odom漂了，这篇工作不处理，直接跳过
   cluster_list_.remove_if([&](ClusterInfo::Ptr cluster) {
-    bool remove = cluster2remove.count(cluster->id_);
+    bool remove = cluster2remove.count(cluster->id_);  // 按簇 id查
     if (remove) {
       for (auto &cell : cluster->cells_) {
         Eigen::Vector3i idx;
