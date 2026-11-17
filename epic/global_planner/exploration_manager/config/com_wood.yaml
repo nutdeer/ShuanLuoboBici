@@ -17,7 +17,7 @@ bubble_topo/min_z: 0.51
 bubble_topo/bubble_min_radius: 0.35   # 生成 bubble_skeleton 时最小半径要比这个大
 bubble_topo/init_region_size_x: 3.3   # RegionNode 大小,每个栅格里放一堆 topo_graph_p 用来导航
 bubble_topo/init_region_size_y: 3.3
-bubble_topo/init_region_size_z: 2.0
+bubble_topo/init_region_size_z: 2.8
 bubble_topo/cube_discrete_size: 0.2   # 拓扑图球采样,需要检查每个采样点是否安全 拓扑地图的栅格尺寸
 bubble_topo/odom_node_distance: 3.0   #移动多少距离后，才更新拓扑
 bubble_topo/viz_split_boxes: true     #可视化递归盒划分(调试用，/bubble_topo/split_boxes)
@@ -88,8 +88,12 @@ SmoothingEps: 0.015
 IntegralIntervs: 32
 RelCostTol: 1.0e-6
 #param for yaw opt
-yaw_max_vel: 1.0    #最大偏航速度
+yaw_max_vel: 2.0    #最大偏航速度
 yaw_rho_vis: 10000.0
 yaw_time_fwd: 3.0
-
+# ============ 起点保护 ============
+FrontierManager/startup_filter_enabled: false # 是否过滤起点附近的前沿点
+FrontierManager/startup_filter_radius: 3.0   # 起点附近的水平过滤半径，单位：米
+FrontierManager/startup_filter_z_max: -0.10   # 过滤低于此世界坐标高度的点，单位：米
+# ============ 起点保护 ============
 bubble_topo/viz_split_boxes: false
