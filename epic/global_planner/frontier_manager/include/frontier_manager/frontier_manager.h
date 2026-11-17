@@ -200,6 +200,7 @@ struct SuperClusterInfo {
 class FrontierManager {
 private:
   bool startup_filter_enabled_ = false;   // 起点过滤
+  bool startup_filter_config_enabled_ = true;
   Eigen::Vector3f startup_filter_center_ = Eigen::Vector3f::Zero();
   float startup_filter_radius_ = 3.0f;
   float startup_filter_z_max_ = -0.10f;

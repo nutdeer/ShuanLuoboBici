@@ -34,6 +34,11 @@ lidar_perception/max_ray_length: 30     #雷达最大范围
 parallel_astar/update_connection_timeout: 0.002   #并行节点插入的时间限制
 parallel_astar/insert_node_timeout: 0.002         #
 FrontierManager/cell_size: 0.4          #前沿栅格分辨率
+# ============ 起点保护 ============
+FrontierManager/startup_filter_enabled: true # 是否过滤起点附近的前沿点
+FrontierManager/startup_filter_radius: 3.0   # 起点附近的水平过滤半径，单位：米
+FrontierManager/startup_filter_z_max: -0.10   # 过滤低于此世界坐标高度的点，单位：米
+# ============ 起点保护 ============
 FrontierManager/noise_cell_range: 1     #噪声滤波数量
 FrontierManager/good_observation_direction_score: 0.5     #优质前沿方向的打分
 FrontierManager/good_observation_force_trust_length: 4.0  #强制信任的观测距离

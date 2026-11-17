@@ -13,7 +13,11 @@
 size_t ByteArrayRaw::size = 0;
 void FrontierManager::setStartupFilter(const Eigen::Vector3f &center) {
   startup_filter_center_ = center;
-  startup_filter_enabled_ = true;
+  startup_filter_enabled_ = startup_filter_config_enabled_;
+  if (!startup_filter_enabled_) {
+    ROS_INFO("[frontier] Startup filter disabled by configuration");
+    return;
+  }
 
   ROS_WARN("[frontier] Startup filter enabled: center=(%.2f, %.2f), "
            "radius=%.2f, z_max=%.2f",
@@ -26,6 +30,9 @@ void FrontierManager::init(ros::NodeHandle &nh, LIOInterface::Ptr &lio_interface
   nh_ = nh;
   graph_ = graph;
   lidar_map_interface_ = lio_interface;
+  nh.param("FrontierManager/startup_filter_enabled", startup_filter_config_enabled_, true);
+  nh.param("FrontierManager/startup_filter_radius", startup_filter_radius_, 3.0f);
+  nh.param("FrontierManager/startup_filter_z_max", startup_filter_z_max_, -0.10f);
   nh.getParam("FrontierManager/cell_size", frtp_.cell_size_);
   frtp_.inv_cell_size_ = 1 / frtp_.cell_size_;
   nh.getParam("FrontierManager/noise_cell_range", frtp_.noise_cell_range_);
