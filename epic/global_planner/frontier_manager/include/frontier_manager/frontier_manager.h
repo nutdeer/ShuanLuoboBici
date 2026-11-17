@@ -199,6 +199,11 @@ struct SuperClusterInfo {
 
 class FrontierManager {
 private:
+  bool startup_filter_enabled_ = false;   // 起点过滤
+  Eigen::Vector3f startup_filter_center_ = Eigen::Vector3f::Zero();
+  float startup_filter_radius_ = 3.0f;
+  float startup_filter_z_max_ = -0.10f;
+
   FrontierParam frtp_;
   FrontierData frtd_;
   ViewpointParam vpp_;
@@ -258,6 +263,7 @@ private:
   void reclusterSuperCluster(SuperClusterInfo::Ptr &super_cluster);
 
 public:
+  void setStartupFilter(const Eigen::Vector3f &center);
   typedef std::shared_ptr<FrontierManager> Ptr;
   Eigen::Isometry3f transform_world2lidar;
 

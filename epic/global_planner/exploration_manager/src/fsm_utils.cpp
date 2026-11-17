@@ -177,6 +177,14 @@ void FastExplorationFSM::CloudOdomCallback(const sensor_msgs::PointCloud2ConstPt
   planner_manager_->local_data_.curr_vel_ = fd_->odom_vel_.cast<double>();
   planner_manager_->topo_graph_->odom_node_->center_ = fd_->odom_pos_;
   fd_->have_odom_ = true;
+
+  // 接受到点云回调记录起点
+  static bool startup_filter_initialized = false;
+  if (!startup_filter_initialized) {
+    expl_manager_->frontier_manager_ptr_->setStartupFilter(fd_->odom_pos_);
+    startup_filter_initialized = true;
+  }
+
   vector<ClusterInfo::Ptr> new_clusters;
   vector<int> cluster_removed;
   expl_manager_->frontier_manager_ptr_->updateFrontierClusters(new_clusters, cluster_removed);

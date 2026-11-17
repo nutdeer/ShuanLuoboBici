@@ -9,7 +9,18 @@
 #include <frontier_manager/frontier_manager.h>
 #include <pcl/filters/voxel_grid.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <algorithm>
 size_t ByteArrayRaw::size = 0;
+void FrontierManager::setStartupFilter(const Eigen::Vector3f &center) {
+  startup_filter_center_ = center;
+  startup_filter_enabled_ = true;
+
+  ROS_WARN("[frontier] Startup filter enabled: center=(%.2f, %.2f), "
+           "radius=%.2f, z_max=%.2f",
+           center.x(), center.y(),
+           startup_filter_radius_, startup_filter_z_max_);
+}
+
 void FrontierManager::init(ros::NodeHandle &nh, LIOInterface::Ptr &lio_interface,
                            TopoGraph::Ptr graph) {
   nh_ = nh;
@@ -835,17 +846,39 @@ void FrontierManager::updateFrontierClusters(
     ByteArrayRaw bytes;
     idx2bytes(cell, bytes);
     if (get_state(cell) == SPARSE && has_dense_nbr(cell)) {
-      if (bad_dis_set.count(cell)) {
+      PointType pt;
+      idx2pos(cell, pt);
+
+      // 在标记为前沿之前过滤
+      if (startup_filter_enabled_) 
+      {
+        const float dx = pt.x - startup_filter_center_.x();
+        const float dy = pt.y - startup_filter_center_.y();
+
+        if (dx * dx + dy * dy < startup_filter_radius_ * startup_filter_radius_ && pt.z < startup_filter_z_max_) 
+        {
+          frtd_.label_map_[bytes] = DENSE;
+          frtd_.frt_map_.erase(bytes);
+          continue;
+        }
+      }
+
+      if (bad_dis_set.count(cell)) 
+      {
         frtd_.label_map_[bytes] = FRONTIER_DIS;
-      } else if (bad_dir_set.count(cell)) {
+      } 
+      else if (bad_dir_set.count(cell)) 
+      {
         frtd_.label_map_[bytes] = FRONTIER_DIR;
-      } else {
+      } 
+      else 
+      {
         ROS_ERROR("wtf 885");
         exit(1);
       }
-      if (old_frt_set.count(cell) == 0) {
-        PointType pt;
-        idx2pos(cell, pt);
+
+      if (old_frt_set.count(cell) == 0) 
+      {
         frt_new.push_back(pt);
       }
     } else {
@@ -865,10 +898,13 @@ void FrontierManager::updateFrontierClusters(
     }
   }
   PointVector updated_pts;
+  updated_pts.insert(updated_pts.end(), frt_new.begin(), 
+                    frt_new.end());
   updated_pts.insert(updated_pts.end(), updated_frt_pts.begin(),
                      updated_frt_pts.end());
-  updated_pts.insert(updated_pts.end(), frt_new.begin(), frt_new.end());
+  // 计算前沿的变化区域
   update_updating_aabb(updated_pts);
+  // 更新前沿聚类
   cluster_frts(frt_new, cluster_updated, cluster_removed);
 }
 
