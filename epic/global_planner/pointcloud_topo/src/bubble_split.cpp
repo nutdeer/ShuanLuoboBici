@@ -134,13 +134,17 @@ void TopoGraph::splitCubeBubbleGeneration(
   if (bd_size_x < min_x_ * 2.0 && bd_size_y < min_y_ * 2.0 &&
       bd_size_z < min_z_ * 2.0)
     return;
-  double x_step, y_step, z_step;
-  x_step = bd_size_x >= min_x_ * 2.0 ? bd_size_x / 2.0 : bd_size_x;
-  y_step = bd_size_y >= min_y_ * 2.0 ? bd_size_y / 2.0 : bd_size_y;
-  z_step = bd_size_z >= min_z_ * 2.0 ? bd_size_z / 2.0 : bd_size_z;
-  for (size_t i = 0; x_step * (i + 1) + low_bd[0] <= high_bd[0]; i++) {
-    for (int j = 0; y_step * (j + 1) + low_bd[1] <= high_bd[1]; j++) {
-      for (int k = 0; z_step * (k + 1) + low_bd[2] <= high_bd[2]; k++) {
+  // 改成人类思维, 原来为什么要用浮点数卡分割
+  // 但是原作者的代码肯定是人类写的
+  int nx = bd_size_x >= min_x_ * 2.0 ? 2 : 1;
+  int ny = bd_size_y >= min_y_ * 2.0 ? 2 : 1;
+  int nz = bd_size_z >= min_z_ * 2.0 ? 2 : 1;
+  double x_step = bd_size_x / nx;
+  double y_step = bd_size_y / ny;
+  double z_step = bd_size_z / nz;
+  for (int i = 0; i < nx; i++) {
+    for (int j = 0; j < ny; j++) {
+      for (int k = 0; k < nz; k++) {
         generateBubble(
             low_bd + Eigen::Vector3f(x_step * i, y_step * j, z_step * k),
             low_bd + Eigen::Vector3f(x_step * (i + 1), y_step * (j + 1),
