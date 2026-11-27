@@ -66,6 +66,7 @@ void TopoGraph::init(ros::NodeHandle &nh, LIOInterface::Ptr &lidar_map, Parallel
       }
   // 建立一个octree作为球形覆盖的check-point
   check_pts_.clear();
+  // 局部把茶树 模板
   for (float x = 0; x < init_region_size_x_; x += cube_discrete_size) {
     for (float y = 0; y < init_region_size_y_; y += cube_discrete_size) {
       for (float z = 0; z < init_region_size_z_; z += cube_discrete_size) {

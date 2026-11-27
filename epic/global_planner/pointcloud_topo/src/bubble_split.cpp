@@ -8,7 +8,8 @@
  */
 #include "pointcloud_topo/graph.h"
 
-// 主接口 在空闲区域生成气泡 实现全部覆盖 (递归调用)
+// 主接口 在空闲区域生成气泡 实现全部覆盖
+// 递归调用)
 void TopoGraph::generateBubble(const Eigen::Vector3f &low_bd,
                                const Eigen::Vector3f &high_bd,
                                vector<BubbleNode::Ptr> &bubble_node_vec,
@@ -55,6 +56,7 @@ void TopoGraph::generateBubble(const Eigen::Vector3f &low_bd,
   Eigen::Vector3f region_bd_min, region_bd_max;
   index2boundary(region_idx, region_bd_min, region_bd_max);
   Eigen::Vector3f box_search_min_pt, box_search_max_pt;
+  // box 上下界 都是删掉左下角的 region_bd_min 
   box_search_min_pt = low_bd - region_bd_min;
   box_search_max_pt = high_bd - region_bd_min;
   std::vector<int> box_indices;
@@ -82,6 +84,7 @@ void TopoGraph::generateBubble(const Eigen::Vector3f &low_bd,
     dbg_box.outcome = 1;
     if (dbg_boxes)
       dbg_boxes->push_back(dbg_box);
+    // 所以这里空间拆分
     splitCubeBubbleGeneration(low_bd, high_bd, bubble_node_vec, check_flags,
                               depth + 1, dbg_boxes);
     return;
@@ -91,9 +94,9 @@ void TopoGraph::generateBubble(const Eigen::Vector3f &low_bd,
   dbg_box.outcome = 2;
   std::vector<int> radius_indices;
   std::vector<float> radius_distances;
-  pcl::PointXYZ searchPoint(center.x(), center.y(), center.z());
-  check_pts_octree_.radiusSearch(searchPoint, (float)dis2occ, radius_indices,
-                                 radius_distances);
+  Eigen::Vector3f local_center = center - region_bd_min;
+  pcl::PointXYZ searchPoint(local_center.x(), local_center.y(), local_center.z());
+  check_pts_octree_.radiusSearch(searchPoint, (float)dis2occ, radius_indices, radius_distances);
   for (auto &idx : radius_indices) {
     check_flags[idx] = true;
   }
@@ -154,7 +157,6 @@ void TopoGraph::supplementCubeBubbleGeneration(
     vector<BubbleNode::Ptr> &bubble_node_vec, vector<bool> &check_flags,
     const BubbleNode::Ptr &bubble_node, int depth,
     vector<DebugBox> *dbg_boxes) {
-  bubble_node_vec.push_back(bubble_node);
   // step2 计算出26个邻居长方体
   Eigen::Vector3f outer_000 = low_bd;
   Eigen::Vector3f outer_001{low_bd.x(), low_bd.y(), high_bd.z()};
