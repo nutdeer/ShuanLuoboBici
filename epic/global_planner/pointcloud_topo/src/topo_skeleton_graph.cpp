@@ -35,6 +35,7 @@ void TopoGraph::init(ros::NodeHandle &nh, LIOInterface::Ptr &lidar_map, Parallel
   nh.param("bubble_topo/init_region_size_y", init_region_size_y_, 0.0);
   nh.param("bubble_topo/init_region_size_z", init_region_size_z_, 0.0);
   nh.param("bubble_topo/bubble_min_radius", bubble_min_radius_, 0.5);
+  nh.param("bubble_topo/bubble_connect_overlap", bubble_connect_overlap_, 0.5);
   nh.param("bubble_topo/frontier_bubble_min_radius", frt_bubble_radius_, 0.5);
   nh.param("bubble_topo/cube_discrete_size", cube_discrete_size, 0.3);
   nh.param("bubble_topo/viz_split_boxes", viz_split_boxes_, false);
@@ -330,7 +331,7 @@ int TopoGraph::getBoxId(const Eigen::Vector3f &pt) {
 void BubbleUnionSet::unionSetCluster(const vector<BubbleNode::Ptr> &bubbles, vector<TopoNode::Ptr> &topos, Eigen::Vector3f &center) {
   auto is_bubble_connected = [&](BubbleNode::Ptr b1, BubbleNode::Ptr b2) -> bool {
     double center_distance = (b1->center_ - b2->center_).norm();
-    return center_distance < (b1->radius_ + b2->radius_) - 0.5;
+    return center_distance < (b1->radius_ + b2->radius_) - bubble_connect_overlap_;
   };
   init(bubbles);
   for (size_t i = 0; i < bubbles.size(); i++)
@@ -840,7 +841,7 @@ void TopoGraph::updateSkeleton() {
     // 每个 region 只会被本轮 OpenMP 循环中的一个线程处理。保存本次结果，
     // 使可视化能够显示所有已更新区域，而不只是随后保留下来的拓扑节点。
     region_ptr->coverage_bubbles_ = tmp_bubbles;
-    BubbleUnionSet::Ptr union_set_ = std::make_shared<BubbleUnionSet>(bubble_min_radius_); // TODO: 这个参数是topo节点2occ的最小距离
+    BubbleUnionSet::Ptr union_set_ = std::make_shared<BubbleUnionSet>(bubble_min_radius_, bubble_connect_overlap_); // TODO: 这个参数是topo节点2occ的最小距离
     vector<TopoNode::Ptr> new_nodes_region;
     Eigen::Vector3f region_center = (lb + hb) * 0.5;
     union_set_->unionSetCluster(tmp_bubbles, new_nodes_region, region_center);

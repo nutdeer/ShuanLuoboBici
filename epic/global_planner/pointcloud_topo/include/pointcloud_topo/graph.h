@@ -180,7 +180,9 @@ public:
 
 class BubbleUnionSet {
 public:
-  BubbleUnionSet(double min_topobubble_radius) : min_topobubble_radius_(min_topobubble_radius) {};
+  BubbleUnionSet(double min_topobubble_radius, double bubble_connect_overlap = 0.5)
+      : min_topobubble_radius_(min_topobubble_radius),
+        bubble_connect_overlap_(bubble_connect_overlap) {};
   typedef std::shared_ptr<BubbleUnionSet> Ptr;
   void updateRegionNode(RegionNode::Ptr region_ptr, const Eigen::Vector3f &region_center_);
   void unionSetCluster(const vector<BubbleNode::Ptr> &bubbles, vector<TopoNode::Ptr> &topos, Eigen::Vector3f &center);
@@ -191,6 +193,7 @@ private:
   std::vector<BubbleNode::Ptr> clusters;
   std::vector<BubbleNode::Ptr> bubbles;
   double min_topobubble_radius_;
+  double bubble_connect_overlap_;
   std::unordered_map<BubbleNode::Ptr, TopoNode::Ptr> topo_map;
   void init(const std::vector<BubbleNode::Ptr> &bubbles_);
   BubbleNode::Ptr find(BubbleNode::Ptr b);
@@ -220,6 +223,7 @@ public:
   Eigen::Vector3f min_bd, max_bd, map_bd_min, map_bd_max;
   double min_x_, min_y_, min_z_; // 最小格子尺寸
   double bubble_min_radius_, frt_bubble_radius_;
+  double bubble_connect_overlap_ = 0.5;
   double init_region_size_x_, init_region_size_y_, init_region_size_z_; // 初始分区大小
   int x_len, y_len, z_len;                                              // 分区数量
   double max_radius, cube_discrete_size;

@@ -15,6 +15,7 @@ bubble_topo/min_x: 1.01   #单个气泡的最小大小
 bubble_topo/min_y: 1.01
 bubble_topo/min_z: 0.51
 bubble_topo/bubble_min_radius: 0.35   #气泡的最小半径？？？
+bubble_topo/bubble_connect_overlap: 0.5 # 气泡聚类判连通的最小重叠深度
 bubble_topo/init_region_size_x: 3.3   #初始拓扑区域的大小？？？
 bubble_topo/init_region_size_y: 3.3
 bubble_topo/init_region_size_z: 2.0
